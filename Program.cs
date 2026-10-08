@@ -41,7 +41,7 @@ var bot = BotBaseBuilder
     })
     .NoSerialization()   // form state is transient; albums live in SQLite
     .DefaultLanguage()
-    .UseSingleThread()   // keeps media in upload order
+    .UseThreadPool()   // keeps media in upload order
     .Build();
 
 BotInfo.Username = (await bot.Client.TelegramClient.GetMe()).Username;
