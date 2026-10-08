@@ -16,10 +16,11 @@ namespace nAlbum.Source;
 ///
 /// Callback data:
 ///   menu | new | mine:&lt;page&gt; | shared:&lt;page&gt; | al:&lt;album&gt;
-///   view:&lt;album&gt;:&lt;offset&gt; | vp:&lt;album&gt;:&lt;offset&gt;
+///   view:&lt;album&gt;:&lt;offset&gt; | vp:&lt;album&gt;:&lt;offset&gt;:&lt;flags&gt;
 ///   rnd:&lt;album&gt; | rp:&lt;album&gt;:&lt;seed&gt;:&lt;offset&gt;:&lt;flags&gt;      flags: 1 = numbers, 2 = delete mode (3 = both)
-///   add:&lt;album&gt; | done:&lt;album&gt;
-///   rmlist:&lt;album&gt;:&lt;offset&gt;
+///   add:&lt;album&gt; | done:&lt;album&gt;                              done: add-media only
+///   rmlist:&lt;album&gt;:&lt;ignored&gt;                                opens the "type numbers" prompt
+///   rmt:&lt;mediaId&gt;:&lt;offset&gt; | rmp:&lt;album&gt;:&lt;offset&gt; | rmy:&lt;album&gt; | rmc:&lt;album&gt;   remove preview: toggle / page / confirm / cancel
 ///   toggle:&lt;album&gt; | ren:&lt;album&gt; | del:&lt;album&gt; | delok:&lt;album&gt;
 ///   leave:&lt;album&gt;
 /// Every owner action re-checks ownership on the server side.
@@ -34,7 +35,7 @@ public class AlbumsForm : FormBase
         "Create albums of photos and videos and share them with a secret code.\n" +
         "Got a code from a friend? Just send it to me.";
 
-    private enum Mode { Idle, NewTitle, Rename, Adding, Removing }
+    private enum Mode { Idle, NewTitle, Rename, Adding, Removing, RemovePrompt }
 
     private readonly AlbumService _albums;
 
@@ -45,9 +46,15 @@ public class AlbumsForm : FormBase
     private readonly List<int> _viewIds = new(); // message ids of the album currently shown (in order)
     private int _viewNavId;                      // id of its navigation message
     private bool _viewEditable;                  // ids are known and line up with the items
-    private int _removeOffset;   // first item (0-based) of the page shown in remove mode
-    private string _removeNote;  // one-off message shown in the remove navigation text
-    private long _removeSeed;   // 0 = ordered remove page; > 0 = delete-by-number inside the random view (the seed)
+    private int _removeOffset;   // first item (0-based) of the page shown in delete mode
+    private long _removeSeed;   // seed of the view page delete mode works on; 0 = ordered view, >0 = random view
+
+    // "Remove media" preview state (in memory only)
+    private readonly List<(int Number, MediaItem Item)> _pending = new(); // selected items in album order
+    private readonly HashSet<long> _pendingKept = new();                   // media ids the owner chose to keep
+    private long _pendingAlbumId;
+    private int _previewOffset;   // first selected item (0-based) on the preview page that is on screen
+    private int _promptMsgId;     // message id of the "type the numbers" prompt (0 = none)
 
     public AlbumsForm(AlbumService albums)
     {
@@ -117,6 +124,10 @@ public class AlbumsForm : FormBase
             
             case Mode.Removing:
                 await OnRemoveNumbers(message, text);
+                return;
+
+            case Mode.RemovePrompt:
+                await OnRemovePromptText(message, text);
                 return;
 
             default:
@@ -303,12 +314,9 @@ public class AlbumsForm : FormBase
 
                 case "view":
                 case "vp":
-                    await OnView(m, p);
-                    break;
-                
                 case "rnd":
                 case "rp":
-                    await OnRandomView(m, p);
+                    await OnPageView(m, p);
                     break;
                 
                 case "add":
@@ -323,7 +331,7 @@ public class AlbumsForm : FormBase
                     bf.AddButtonRow("✅ Done", $"done:{album.Id}");
                     await Say(
                         $"📥 Adding to <b>{H(album.Title)}</b>.\n" +
-                        "Send or forward photos and videos — as many as you like. " +
+                        "Send or forward photos and videos – as many as you like. " +
                         "Duplicates are skipped automatically.\nPress <b>Done</b> when finished.", bf);
                     break;
                 }
@@ -343,8 +351,15 @@ public class AlbumsForm : FormBase
                     break;
                 }
 
-                case "rmlist":
-                    await OnRemoveView(m, p);
+                case "rmlist":                       // card button "🗑 Remove media" (3rd segment is ignored now)
+                    await OnRemovePrompt(m, p);
+                    break;
+
+                case "rmt":                          // rmt:<mediaId>:<offset>  toggle keep/delete
+                case "rmp":                          // rmp:<album>:<offset>    preview page
+                case "rmy":                          // rmy:<album>             confirm deletion
+                case "rmc":                          // rmc:<album>             cancel
+                    await OnRemovePreviewAction(m, p);
                     break;
 
                 case "toggle":
@@ -401,44 +416,27 @@ public class AlbumsForm : FormBase
         }
     }
 
-    private async Task OnView(MessageResult m, string[] p)
+    /// <summary>Callback that re-opens a page: seed 0 = ordered view (vp), seed > 0 = random view (rp).</summary>
+    private static string PageCb(Album album, long seed, int offset, int flags) =>
+        seed == 0 ? $"vp:{album.Id}:{offset}:{flags}" : $"rp:{album.Id}:{seed}:{offset}:{flags}";
+
+    /// <summary>
+    /// view:&lt;album&gt;:&lt;offset&gt; | vp:&lt;album&gt;:&lt;offset&gt;:&lt;flags&gt;      ordered view
+    /// rnd:&lt;album&gt;           | rp:&lt;album&gt;:&lt;seed&gt;:&lt;offset&gt;:&lt;flags&gt; random view
+    /// flags: bit 1 = show numbers, bit 2 = delete mode (delete mode implies numbers). Missing flags = 0.
+    /// </summary>
+    private async Task OnPageView(MessageResult m, string[] p)
     {
         var album = await ViewableAlbum(m, p);
         if (album == null) return;
 
-        var offset = Math.Max(Int(p, 2), 0);
-        var total = await _albums.MediaCount(album.Id);
-        var items = await _albums.ListMedia(album.Id, offset, ViewPage);
-        if (items.Count == 0)
-        {
-            await m.ConfirmAction("This album is empty.", true);
-            return;
-        }
-
-        await m.ConfirmAction();
-
-        var bf = new ButtonForm();
-        var row = new List<ButtonBase>();
-        if (offset > 0) row.Add(new ButtonBase("◀ Prev", $"vp:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
-        if (offset + ViewPage < total) row.Add(new ButtonBase("Next ▶", $"vp:{album.Id}:{offset + ViewPage}"));
-        if (row.Count > 0) bf.AddButtonRow(row.ToArray());
-        bf.AddButtonRow(new ButtonBase("🎲 Random", $"rnd:{album.Id}"), new ButtonBase("⬅ Back", $"al:{album.Id}"));
-
-        await ShowViewPage(m.MessageId, items,
-            failed => $"{H(album.Title)}: items {offset + 1}–{offset + items.Count} of {total}" +
-                      (failed > 0 ? $"\n⚠️ {failed} item(s) could not be sent." : ""),
-            bf);
-    }
-
-    private async Task OnRandomView(MessageResult m, string[] p)
-    {
-        var album = await ViewableAlbum(m, p);
-        if (album == null) return;
-
-        var isPage = p[0] == "rp";
-        var seed = isPage ? Math.Clamp(Long(p, 2), 1, 2147483646) : Random.Shared.NextInt64(1, 2147483646);
-        var offset = isPage ? Math.Max(Int(p, 3), 0) : 0;
-        var flags = isPage ? Int(p, 4) : 0;                          // bit 1 = show numbers, bit 2 = delete mode
+        var random = p[0] is "rnd" or "rp";
+        var isPage = p[0] is "vp" or "rp";
+        var seed = random
+            ? (isPage ? Math.Clamp(Long(p, 2), 1, 2147483646) : Random.Shared.NextInt64(1, 2147483646))
+            : 0L;
+        var offset = isPage || p[0] == "view" ? Math.Max(Int(p, random ? 3 : 2), 0) : 0;
+        var flags = isPage ? Int(p, random ? 4 : 3) : 0;
         if ((flags & 2) != 0 && album.OwnerId != UserId) flags &= 1; // only the owner can delete
         if ((flags & 2) != 0) flags |= 1;                            // delete mode always shows numbers
 
@@ -454,19 +452,20 @@ public class AlbumsForm : FormBase
         {
             _mode = Mode.Removing;
             _albumId = album.Id;
-            _removeSeed = seed;
+            _removeSeed = seed;      // 0 = ordered view
             _removeOffset = offset;
         }
         else if (_mode == Mode.Removing)
         {
-            _mode = Mode.Idle;   // left delete mode (Done deleting / Reshuffle)
+            _mode = Mode.Idle;       // left delete mode (Done deleting / Reshuffle / Random / Back to a plain page)
             _removeSeed = 0;
         }
+        // Mode.RemovePrompt is deliberately kept: the owner may browse with numbers and then type numbers for the preview.
 
-        await RenderRandomPage(album, seed, offset, flags, m.MessageId, null);
+        await RenderPage(album, seed, offset, flags, m.MessageId, null);
     }
 
-    private async Task RenderRandomPage(Album album, long seed, int offset, int flags, int clickedMessageId, string note)
+    private async Task RenderPage(Album album, long seed, int offset, int flags, int clickedMessageId, string note)
     {
         var total = await _albums.MediaCount(album.Id);
         if (total == 0)
@@ -482,7 +481,9 @@ public class AlbumsForm : FormBase
         if (offset >= total) offset = (total - 1) / ViewPage * ViewPage; // the page vanished after deletions
         if ((flags & 2) != 0) _removeOffset = offset;
 
-        var items = await _albums.ListMediaShuffled(album.Id, seed, offset, ViewPage);
+        var items = seed == 0
+            ? await _albums.ListMedia(album.Id, offset, ViewPage)
+            : await _albums.ListMediaShuffled(album.Id, seed, offset, ViewPage);
 
         List<string> captions = null;
         if ((flags & 1) != 0)
@@ -491,7 +492,7 @@ public class AlbumsForm : FormBase
             captions = NumberCaptions(items.Select(i => pos[i.Id]).ToList());
         }
 
-        var (text, nav) = RandomNav(album, seed, offset, total, items.Count, flags, note);
+        var (text, nav) = PageNav(album, seed, offset, total, items.Count, flags, note);
         await ShowViewPage(
             clickedMessageId,
             items,
@@ -500,13 +501,15 @@ public class AlbumsForm : FormBase
             captions);
     }
 
-    private (string Text, ButtonForm Buttons) RandomNav(Album album, long seed, int offset, int total, int count,
+    private (string Text, ButtonForm Buttons) PageNav(Album album, long seed, int offset, int total, int count,
         int flags, string note)
     {
         var deleting = (flags & 2) != 0;
         var numbers = (flags & 1) != 0;
 
-        var text = $"🎲 <b>{H(album.Title)}</b>: random {offset + 1}–{offset + count} of {total}";
+        var text = seed == 0
+            ? $"<b>{H(album.Title)}</b>: items {offset + 1}–{offset + count} of {total}"
+            : $"🎲 <b>{H(album.Title)}</b>: random {offset + 1}–{offset + count} of {total}";
         if (numbers) text += "\nThe numbers under the pictures are listed in the same order as the pictures (left to right, top to bottom).";
         if (deleting) text += "\n🗑 Type the number(s) to delete, e.g. <code>12</code>, <code>12 15 18</code> or <code>12-15</code>.";
         if (note != null) text = note + "\n\n" + text;
@@ -514,27 +517,29 @@ public class AlbumsForm : FormBase
         var bf = new ButtonForm();
         var row = new List<ButtonBase>();
         if (offset > 0)
-            row.Add(new ButtonBase("◀ Prev", $"rp:{album.Id}:{seed}:{Math.Max(offset - ViewPage, 0)}:{flags}"));
+            row.Add(new ButtonBase("◀ Prev", PageCb(album, seed, Math.Max(offset - ViewPage, 0), flags)));
         if (offset + ViewPage < total)
-            row.Add(new ButtonBase("Next ▶", $"rp:{album.Id}:{seed}:{offset + ViewPage}:{flags}"));
+            row.Add(new ButtonBase("Next ▶", PageCb(album, seed, offset + ViewPage, flags)));
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
 
         if (deleting)
         {
-            bf.AddButtonRow("✅ Done deleting", $"rp:{album.Id}:{seed}:{offset}:1");
+            bf.AddButtonRow("✅ Done deleting", PageCb(album, seed, offset, 1));
         }
         else
         {
             var toggle = numbers
-                ? new ButtonBase("🔢 Hide numbers", $"rp:{album.Id}:{seed}:{offset}:{flags & ~1}")
-                : new ButtonBase("🔢 Show numbers", $"rp:{album.Id}:{seed}:{offset}:{flags | 1}");
+                ? new ButtonBase("🔢 Hide numbers", PageCb(album, seed, offset, flags & ~1))
+                : new ButtonBase("🔢 Show numbers", PageCb(album, seed, offset, flags | 1));
             var buttons = new List<ButtonBase> { toggle };
             if (album.OwnerId == UserId)
-                buttons.Add(new ButtonBase("🗑 Delete by number", $"rp:{album.Id}:{seed}:{offset}:3"));
+                buttons.Add(new ButtonBase("🗑 Delete by number", PageCb(album, seed, offset, 3)));
             bf.AddButtonRow(buttons.ToArray());
         }
 
-        bf.AddButtonRow(new ButtonBase("🎲 Reshuffle", $"rnd:{album.Id}"), new ButtonBase("⬅ Back", $"al:{album.Id}"));
+        bf.AddButtonRow(
+            new ButtonBase(seed == 0 ? "🎲 Random" : "🎲 Reshuffle", $"rnd:{album.Id}"),
+            new ButtonBase("⬅ Back", $"al:{album.Id}"));
         return (text, bf);
     }
 
@@ -641,7 +646,7 @@ public class AlbumsForm : FormBase
         }
         else
         {
-            sb.Append("\n🔒 Closed — only you can see it");
+            sb.Append("\n🔒 Closed – only you can see it");
         }
 
         bf.AddButtonRow(new ButtonBase("👀 View", $"view:{album.Id}:0"), new ButtonBase("🎲 Random", $"rnd:{album.Id}"));
@@ -880,67 +885,6 @@ public class AlbumsForm : FormBase
         return false;
     }
     
-    private async Task OnRemoveView(MessageResult m, string[] p)
-    {
-        var album = await OwnedAlbum(m, p);
-        if (album == null) return;
-
-        var total = await _albums.MediaCount(album.Id);
-        if (total == 0)
-        {
-            await m.ConfirmAction("Nothing to remove.", true);
-            return;
-        }
-
-        await m.ConfirmAction();
-        _mode = Mode.Removing;
-        _albumId = album.Id;
-        _removeSeed = 0;   // ordered remove page, not the random one
-        _removeOffset = Math.Max(Int(p, 2), 0);
-        _removeNote = null;
-        await RenderRemovePage(album, m.MessageId);
-    }
-
-    private async Task RenderRemovePage(Album album, int clickedMessageId = 0)
-    {
-        var total = await _albums.MediaCount(album.Id);
-        if (total == 0)
-        {
-            await ClearView();
-            _mode = Mode.Idle;
-            var (card, cardButtons) = await BuildCard(album);
-            await Say("✅ The album is now empty.\n\n" + card, cardButtons);
-            return;
-        }
-
-        if (_removeOffset >= total) _removeOffset = (total - 1) / ViewPage * ViewPage; // page vanished
-        var items = await _albums.ListMedia(album.Id, _removeOffset, ViewPage);
-        var (text, bf) = RemoveNav(album, total, _removeOffset, items.Count);
-        _removeNote = null;
-
-        await ShowViewPage(
-            clickedMessageId == 0 ? _viewNavId : clickedMessageId,
-            items,
-            failed => text + (failed > 0 ? $"\n⚠️ {failed} item(s) could not be shown." : ""),
-            bf,
-            captions: NumberCaptions(Enumerable.Range(_removeOffset + 1, items.Count).ToList()));
-    }
-
-    private (string Text, ButtonForm Buttons) RemoveNav(Album album, int total, int offset, int count)
-    {
-        var text = $"🗑 <b>{H(album.Title)}</b>: items {offset + 1}–{offset + count} of {total}\n" +
-                   "Type the number(s) to delete, e.g. <code>12</code>, <code>12 15 18</code> or <code>12-15</code>.";
-        if (_removeNote != null) text = _removeNote + "\n\n" + text;
-
-        var bf = new ButtonForm();
-        var row = new List<ButtonBase>();
-        if (offset > 0) row.Add(new ButtonBase("◀ Prev", $"rmlist:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
-        if (offset + ViewPage < total) row.Add(new ButtonBase("Next ▶", $"rmlist:{album.Id}:{offset + ViewPage}"));
-        if (row.Count > 0) bf.AddButtonRow(row.ToArray());
-        bf.AddButtonRow("✅ Done", $"done:{album.Id}");
-        return (text, bf);
-    }
-
     private async Task OnRemoveNumbers(MessageResult message, string text)
     {
         var album = await _albums.GetAlbum(_albumId);
@@ -954,11 +898,12 @@ public class AlbumsForm : FormBase
 
         var positions = ParsePositions(text);
         var total = await _albums.MediaCount(album.Id);
+        string note;
         var deleted = false;
 
         if (positions == null || positions.Count == 0)
         {
-            _removeNote = "⚠️ I couldn't read that.";
+            note = "⚠️ I couldn't read that.";
         }
         else
         {
@@ -966,46 +911,281 @@ public class AlbumsForm : FormBase
             var ids = await _albums.GetMediaIdsAtPositions(album.Id, valid); // resolve before deleting
             if (ids.Count == 0)
             {
-                _removeNote = "⚠️ No items with those numbers.";
+                note = "⚠️ No items with those numbers.";
             }
             else
             {
                 await _albums.DeleteMedia(ids);
-                _removeNote = $"✅ Deleted {ids.Count} item(s)" +
-                              (valid.Count < positions.Count ? " (some numbers were out of range)." : ".");
+                note = $"✅ Deleted {ids.Count} item(s)" +
+                       (valid.Count < positions.Count ? " (some numbers were out of range)." : ".");
                 deleted = true;
             }
         }
 
-        if (_removeSeed != 0) // delete-by-number inside the random view
-        {
-            var note = _removeNote;
-            _removeNote = null;
-            if (deleted)
-            {
-                await RenderRandomPage(album, _removeSeed, _removeOffset, 3, _viewNavId, note);
-            }
-            else
-            {
-                var shown = Math.Min(ViewPage, Math.Max(total - _removeOffset, 0));
-                var (rndNavText, navButtons) = RandomNav(album, _removeSeed, _removeOffset, total, shown, 3, note);
-                await EditNav(rndNavText, navButtons);
-            }
-
-            return;
-        }
-
         if (deleted)
         {
-            await RenderRemovePage(album); // refreshes the album in place
+            await RenderPage(album, _removeSeed, _removeOffset, 3, _viewNavId, note); // refresh in place
             return;
         }
 
-        // nothing deleted: only update the navigation text
         var count = Math.Min(ViewPage, Math.Max(total - _removeOffset, 0));
-        var (navText, bf) = RemoveNav(album, total, _removeOffset, count);
-        _removeNote = null;
-        await EditNav(navText, bf);
+        var (navText, navButtons) = PageNav(album, _removeSeed, _removeOffset, total, count, 3, note);
+        await EditNav(navText, navButtons);
+    }
+
+    // ----- Remove media: prompt -> preview -> confirm -----------------------------------------------
+
+    private void ClearPending()
+    {
+        _pending.Clear();
+        _pendingKept.Clear();
+        _pendingAlbumId = 0;
+        _previewOffset = 0;
+        _promptMsgId = 0;
+    }
+
+    /// <summary>Card button "🗑 Remove media": turns the card message into the "type numbers" prompt.</summary>
+    private async Task OnRemovePrompt(MessageResult m, string[] p)
+    {
+        var album = await OwnedAlbum(m, p);
+        if (album == null) return;
+
+        if (await _albums.MediaCount(album.Id) == 0)
+        {
+            await m.ConfirmAction("Nothing to remove.", true);
+            return;
+        }
+
+        await m.ConfirmAction();
+        await ClearView(m.MessageId);   // drop any album still on screen, keep the clicked message
+        ClearPending();
+        _mode = Mode.RemovePrompt;
+        _albumId = album.Id;
+        _promptMsgId = m.MessageId;
+        await RenderRemovePrompt(album, null);
+    }
+
+    private async Task RenderRemovePrompt(Album album, string note)
+    {
+        var total = await _albums.MediaCount(album.Id);
+        var text = $"🗑 <b>Remove media</b> – {H(album.Title)} ({total} items)\n\n" +
+                   "Type the numbers of the items to delete, e.g. <code>5</code>, <code>1 2 3</code> or <code>1-3</code>.\n" +
+                   "You will see a preview first and can cancel before anything is deleted.\n" +
+                   "Don't know the numbers? Open the view with numbers.";
+        if (note != null) text = note + "\n\n" + text;
+
+        var bf = new ButtonForm();
+        bf.AddButtonRow("👀 View with numbers", $"vp:{album.Id}:0:1");
+        bf.AddButtonRow("⬅ Cancel", $"al:{album.Id}");
+
+        if (_promptMsgId != 0)
+        {
+            try
+            {
+                await Device.Edit(_promptMsgId, text, bf, ParseMode.Html);
+                return;
+            }
+            catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
+            {
+                return;
+            }
+            catch (ApiRequestException)
+            {
+                // prompt message is gone -> send a new one
+            }
+        }
+
+        _promptMsgId = (await Say(text, bf))?.MessageId ?? 0;
+    }
+
+    /// <summary>Typed numbers in Mode.RemovePrompt: build (or replace) the selection and show the preview. Deletes nothing.</summary>
+    private async Task OnRemovePromptText(MessageResult message, string text)
+    {
+        var album = await _albums.GetAlbum(_albumId);
+        if (album == null || album.OwnerId != UserId)
+        {
+            _mode = Mode.Idle;
+            return;
+        }
+
+        await TryDelete(message.MessageId); // keep the chat tidy
+
+        var positions = ParsePositions(text);
+        if (positions == null || positions.Count == 0)
+        {
+            await RefreshRemoveScreen(album, "⚠️ I couldn't read that. Examples: 5, 1 2 3, 1-3");
+            return;
+        }
+
+        var resolved = await _albums.ResolvePositions(album.Id, positions);
+        if (resolved.Count == 0)
+        {
+            await RefreshRemoveScreen(album, "⚠️ No items with those numbers.");
+            return;
+        }
+
+        _pending.Clear();
+        _pendingKept.Clear();
+        _pending.AddRange(resolved);
+        _pendingAlbumId = album.Id;
+
+        var skipped = positions.Count - resolved.Count;
+        var note = skipped > 0 ? $"ℹ️ {skipped} number(s) are out of range and were ignored." : null;
+        await RenderRemovePreview(album, 0, _viewNavId != 0 ? _viewNavId : _promptMsgId, note);
+    }
+
+    /// <summary>Shows a one-line note without redrawing media: on the preview nav if one is on screen, else on the prompt.</summary>
+    private async Task RefreshRemoveScreen(Album album, string note)
+    {
+        if (_pending.Count > 0 && _viewNavId != 0)
+        {
+            var page = _pending.Skip(_previewOffset).Take(ViewPage).ToList();
+            var (text, bf) = RemovePreviewNav(album, _previewOffset, page, note);
+            await EditNav(text, bf);
+            return;
+        }
+
+        await RenderRemovePrompt(album, note);
+    }
+
+    private async Task RenderRemovePreview(Album album, int offset, int clickedMessageId, string note)
+    {
+        var lastPageStart = Math.Max(_pending.Count - 1, 0) / ViewPage * ViewPage;
+        offset = Math.Clamp(offset, 0, lastPageStart);
+        _previewOffset = offset;
+
+        var page = _pending.Skip(offset).Take(ViewPage).ToList();
+        var items = page.Select(x => x.Item).ToList();
+        var captions = NumberCaptions(page.Select(x => x.Number).ToList());
+        var (text, nav) = RemovePreviewNav(album, offset, page, note);
+
+        await ShowViewPage(
+            clickedMessageId,
+            items,
+            failed => text + (failed > 0 ? $"\n⚠️ {failed} item(s) could not be shown (they can still be deleted)." : ""),
+            nav,
+            captions);
+        _promptMsgId = 0; // the prompt message was replaced by the preview
+    }
+
+    private (string Text, ButtonForm Buttons) RemovePreviewNav(Album album, int offset,
+        List<(int Number, MediaItem Item)> page, string note)
+    {
+        var toDelete = _pending.Count(x => !_pendingKept.Contains(x.Item.Id));
+
+        var text = $"🗑 <b>Preview</b> – {H(album.Title)}\n" +
+                   $"Selected {_pending.Count}, showing {offset + 1}–{offset + page.Count}.\n" +
+                   "The numbers under the pictures are listed in picture order.\n" +
+                   "Tap a number to keep it (↩) or to delete it again (🗑). Type other numbers to replace the selection.\n" +
+                   $"<b>Will be deleted: {toDelete} of {_pending.Count}</b>";
+        if (note != null) text = note + "\n\n" + text;
+
+        var bf = new ButtonForm();
+        var row = new List<ButtonBase>();
+        foreach (var (number, item) in page)
+        {
+            var kept = _pendingKept.Contains(item.Id);
+            row.Add(new ButtonBase($"{(kept ? "↩" : "🗑")} #{number}", $"rmt:{item.Id}:{offset}"));
+            if (row.Count == 5)
+            {
+                bf.AddButtonRow(row.ToArray());
+                row = new List<ButtonBase>();
+            }
+        }
+
+        if (row.Count > 0) bf.AddButtonRow(row.ToArray());
+
+        var navRow = new List<ButtonBase>();
+        if (offset > 0) navRow.Add(new ButtonBase("◀ Prev", $"rmp:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
+        if (offset + ViewPage < _pending.Count) navRow.Add(new ButtonBase("Next ▶", $"rmp:{album.Id}:{offset + ViewPage}"));
+        if (navRow.Count > 0) bf.AddButtonRow(navRow.ToArray());
+
+        var actions = new List<ButtonBase>();
+        if (toDelete > 0) actions.Add(new ButtonBase($"🗑 Delete {toDelete}", $"rmy:{album.Id}"));
+        actions.Add(new ButtonBase("✖ Cancel", $"rmc:{album.Id}"));
+        bf.AddButtonRow(actions.ToArray());
+
+        return (text, bf);
+    }
+
+    /// <summary>The preview is live only for the owner, in Mode.RemovePrompt, with a non-empty selection of that album.</summary>
+    private async Task<Album> LivePreview(MessageResult m, long albumId)
+    {
+        if (_mode != Mode.RemovePrompt || _pending.Count == 0 || m.MessageId != _viewNavId ||
+            (albumId != 0 && _pendingAlbumId != albumId))
+        {
+            await m.ConfirmAction("This preview has expired. Start again from 🗑 Remove media.", true);
+            return null;
+        }
+
+        var album = await _albums.GetAlbum(_pendingAlbumId);
+        if (album == null || album.OwnerId != UserId)
+        {
+            await m.ConfirmAction("Album not found or you are not its owner.", true);
+            return null;
+        }
+
+        return album;
+    }
+
+    private async Task OnRemovePreviewAction(MessageResult m, string[] p)
+    {
+        var album = await LivePreview(m, p[0] == "rmt" ? 0 : Long(p, 1));
+        if (album == null) return;
+
+        switch (p[0])
+        {
+            case "rmt": // toggle keep / delete: only the navigation message changes (no media edits)
+            {
+                var id = Long(p, 1);
+                if (_pending.All(x => x.Item.Id != id))
+                {
+                    await m.ConfirmAction("This preview has expired. Start again from 🗑 Remove media.", true);
+                    return;
+                }
+
+                await m.ConfirmAction();
+                if (!_pendingKept.Remove(id)) _pendingKept.Add(id);
+                _previewOffset = Math.Max(Int(p, 2), 0);
+                await RefreshRemoveScreen(album, null);
+                break;
+            }
+
+            case "rmp": // preview page
+                await m.ConfirmAction();
+                await RenderRemovePreview(album, Int(p, 2), m.MessageId, null);
+                break;
+
+            case "rmc": // cancel everything
+            {
+                await m.ConfirmAction("Cancelled – nothing was deleted.");
+                ClearPending();
+                _mode = Mode.Idle;
+                await ClearView(m.MessageId);
+                var (card, bf) = await BuildCard(album);
+                await Show(m, card, bf);
+                break;
+            }
+
+            case "rmy": // confirm: delete everything that was not kept
+            {
+                var ids = _pending.Where(x => !_pendingKept.Contains(x.Item.Id)).Select(x => x.Item.Id).ToList();
+                if (ids.Count == 0)
+                {
+                    await m.ConfirmAction("Nothing selected to delete.", true);
+                    return;
+                }
+
+                await m.ConfirmAction();
+                var deleted = await _albums.DeleteMediaInAlbum(album.Id, ids);
+                ClearPending();
+                _mode = Mode.Idle;
+                await ClearView(m.MessageId);
+                var (card, bf) = await BuildCard(album);
+                await Show(m, $"✅ Deleted {deleted} item(s).\n\n{card}", bf);
+                break;
+            }
+        }
     }
 
     /// <summary>"12", "12 15 18", "12-15", "3, 7-9" -> set of numbers; null if unreadable.</summary>

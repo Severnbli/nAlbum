@@ -282,6 +282,34 @@ public class AlbumService
         return result;
     }
 
+    /// <summary>
+    /// Resolves 1-based album positions (album order = ascending Id) to (position, item). Positions beyond the album size are dropped.
+    /// </summary>
+    public async Task<List<(int Position, MediaItem Item)>> ResolvePositions(long albumId, IEnumerable<int> positions)
+    {
+        var wanted = positions.Where(p => p >= 1).Distinct().OrderBy(p => p).ToList();
+        if (wanted.Count == 0) return new List<(int, MediaItem)>();
+
+        await using var db = await _factory.CreateDbContextAsync();
+        var ids = await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId)
+            .OrderBy(m => m.Id).Take(wanted[^1]).Select(m => m.Id).ToListAsync(); // ids[k-1] = item at position k
+
+        var picked = wanted.Where(p => p <= ids.Count).Select(p => (Position: p, Id: ids[p - 1])).ToList();
+        var idList = picked.Select(x => x.Id).ToList();
+        var byId = (await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId && idList.Contains(m.Id)).ToListAsync())
+            .ToDictionary(m => m.Id);
+
+        return picked.Where(x => byId.ContainsKey(x.Id)).Select(x => (x.Position, byId[x.Id])).ToList();
+    }
+
+    /// <summary>Deletes the given items, but only if they belong to the album. Returns how many rows were deleted.</summary>
+    public async Task<int> DeleteMediaInAlbum(long albumId, IEnumerable<long> mediaIds)
+    {
+        var list = mediaIds.ToList();
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Media.Where(m => m.AlbumId == albumId && list.Contains(m.Id)).ExecuteDeleteAsync();
+    }
+
     public async Task DeleteMedia(IEnumerable<long> mediaIds)
     {
         var list = mediaIds.ToList();

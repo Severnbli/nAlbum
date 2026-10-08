@@ -1,4 +1,4 @@
-# AI context — nAlbum
+# AI context – nAlbum
 
 Single-project Telegram bot (`nAlbum.csproj`, `net10.0`, nullable disabled). UI is one `AlbumsForm` session per private chat; persistence is SQLite via `AlbumService`. No tests, no EF migrations, no web host.
 
@@ -29,14 +29,14 @@ Program -> AlbumsForm -> AlbumService -> IDbContextFactory<AlbumDb>
 ## Non-obvious behavior
 
 `Program.cs` `BotBaseBuilder`
-- `.NoSerialization()` — `_mode`, `_albumId`, add/remove counters, `_viewIds` live only in the in-memory form. Process restart drops mid-flow state; albums themselves are in SQLite.
-- `.UseThreadPool()` — in-repo comment: keep media upload order. Do not swap the message loop without checking TelegramBotBase + media groups.
+- `.NoSerialization()` – `_mode`, `_albumId`, add/remove counters, `_viewIds` live only in the in-memory form. Process restart drops mid-flow state; albums themselves are in SQLite.
+- `.UseThreadPool()` – in-repo comment: keep media upload order. Do not swap the message loop without checking TelegramBotBase + media groups.
 - `.DefaultMessageLoop()` + `.NoProxy()`; compose publishes no ports (no webhook setup in this repo).
-- `.CustomCommands` + `UploadBotCommands()` — `/start`, `/menu`, `/new`, `/join`, `/cancel`.
+- `.CustomCommands` + `UploadBotCommands()` – `/start`, `/menu`, `/new`, `/join`, `/cancel`.
 - `BotInfo.Username` assigned only after `GetMe`; share links need it.
 
 `AlbumsForm` session machine
-- `OnCommand` always sets `_mode = Idle` before handling — `/cancel` and any command abort NewTitle/Rename/Adding/Removing.
+- `OnCommand` always sets `_mode = Idle` before handling – `/cancel` and any command abort NewTitle/Rename/Adding/Removing.
 - Access codes in chat are accepted **only in Idle**. In `NewTitle`/`Rename` the same text is a title.
 - Deep link: `/start CODE` → `TryJoin(args[0])`. `/join CODE` and `/start CODE` count a failed throttle attempt when the code is invalid **or** fails `LooksLikeCode` (plain chat text only reaches `TryJoin` after `LooksLikeCode`).
 - Live callbacks:
@@ -78,7 +78,7 @@ Remove-by-number
 - `rp:` reuses seed via `Math.Clamp(..., 1, 2147483646)` and offset in callback_data. Changing the modulus/seed range breaks stable Next/Prev.
 
 Owner checks
-- Owner writes (`add`/`done`/`rmlist`/`toggle`/`ren`/`del`/`delok`) go through `OwnedAlbum`. Views go through `ViewableAlbum`. `leave:` does **not** — it deletes `AlbumAccess` for `UserId` and shows the shared list. `AlbumService` methods generally do **not** re-check ownership.
+- Owner writes (`add`/`done`/`rmlist`/`toggle`/`ren`/`del`/`delok`) go through `OwnedAlbum`. Views go through `ViewableAlbum`. `leave:` does **not** – it deletes `AlbumAccess` for `UserId` and shows the shared list. `AlbumService` methods generally do **not** re-check ownership.
 
 `Action` errors
 - Non-`ApiRequestException` → log + “Something went wrong”. `ApiRequestException` is **not** caught there (can bubble).
@@ -149,13 +149,13 @@ No test project.
 
 ## Dangerous areas
 
-- `AlbumDb` / `Program.EnsureCreatedAsync` — schema edits need a manual plan for existing SQLite files; EnsureCreated will not migrate.
-- `AlbumService.CloseAlbum` / `OpenAlbum` — close wipes viewers and the code; open replaces the code.
-- `AlbumService.GetMediaIdsAtPositions` — resolve positions before delete; 1-based `Id` order.
-- `AlbumsForm.Action` — owner/view checks are only here for most writes.
-- `AlbumsForm.SendBatch` / `EditMedia` — flood-wait loops; do not add unbounded retries around Telegram send.
-- `AlbumsForm.OnRemoveNumbers` — `_removeSeed != 0` refreshes the random page; `OnRemoveView` must set `_removeSeed = 0`.
-- `AlbumService._failedCodes` — assuming this is durable or multi-instance-safe is wrong.
+- `AlbumDb` / `Program.EnsureCreatedAsync` – schema edits need a manual plan for existing SQLite files; EnsureCreated will not migrate.
+- `AlbumService.CloseAlbum` / `OpenAlbum` – close wipes viewers and the code; open replaces the code.
+- `AlbumService.GetMediaIdsAtPositions` – resolve positions before delete; 1-based `Id` order.
+- `AlbumsForm.Action` – owner/view checks are only here for most writes.
+- `AlbumsForm.SendBatch` / `EditMedia` – flood-wait loops; do not add unbounded retries around Telegram send.
+- `AlbumsForm.OnRemoveNumbers` – `_removeSeed != 0` refreshes the random page; `OnRemoveView` must set `_removeSeed = 0`.
+- `AlbumService._failedCodes` – assuming this is durable or multi-instance-safe is wrong.
 
 ## AI modification rules
 
@@ -998,7 +998,7 @@ public class AlbumsForm : FormBase
                     bf.AddButtonRow("✅ Done", $"done:{album.Id}");
                     await Say(
                         $"📥 Adding to <b>{H(album.Title)}</b>.\n" +
-                        "Send or forward photos and videos — as many as you like. " +
+                        "Send or forward photos and videos – as many as you like. " +
                         "Duplicates are skipped automatically.\nPress <b>Done</b> when finished.", bf);
                     break;
                 }
@@ -1316,7 +1316,7 @@ public class AlbumsForm : FormBase
         }
         else
         {
-            sb.Append("\n🔒 Closed — only you can see it");
+            sb.Append("\n🔒 Closed – only you can see it");
         }
 
         bf.AddButtonRow(new ButtonBase("👀 View", $"view:{album.Id}:0"), new ButtonBase("🎲 Random", $"rnd:{album.Id}"));
