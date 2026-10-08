@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <RootNamespace>nAlbum</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Floating version: after the first successful build, pin it to the resolved one. -->
+    <PackageReference Include="TelegramBotBase" Version="*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.*" />
+  </ItemGroup>
+
+</Project>
