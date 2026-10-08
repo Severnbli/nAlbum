@@ -30,6 +30,7 @@ var bot = BotBaseBuilder
     .DefaultMessageLoop()
     .WithServiceProvider<AlbumsForm>(services) // forms are created through DI
     .NoProxy()
+    .UseDefaultRequestDispatcher()
     .CustomCommands(a =>
     {
         a.Start("Main menu");
