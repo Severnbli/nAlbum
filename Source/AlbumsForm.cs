@@ -6,6 +6,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using TelegramBotBase.Sessions;
 
 namespace nAlbum.Source;
 
@@ -41,6 +42,9 @@ public class AlbumsForm : FormBase
     private long _albumId;          // album being renamed / filled
     private int _added, _skipped;   // counters of the current "add media" session
     private string _lastGroupId;    // last media-group id we already reacted to
+    private readonly List<int> _viewIds = new(); // message ids of the album currently shown (in order)
+    private int _viewNavId;                      // id of its navigation message
+    private bool _viewEditable;                  // ids are known and line up with the items
 
     public AlbumsForm(AlbumService albums)
     {
@@ -284,6 +288,7 @@ public class AlbumsForm : FormBase
                     var album = await ViewableAlbum(m, p);
                     if (album == null) return;
                     await m.ConfirmAction();
+                    await ClearView(m.MessageId);
                     var (card, bf) = await BuildCard(album);
                     await Show(m, card, bf);
                     break;
@@ -408,20 +413,20 @@ public class AlbumsForm : FormBase
         }
 
         await m.ConfirmAction();
-        if (p[0] == "vp") await TryDelete(m.MessageId); // replace the old navigation message
-
-        await SendBatch(items);
 
         var bf = new ButtonForm();
         var row = new List<ButtonBase>();
         if (offset > 0) row.Add(new ButtonBase("◀ Prev", $"vp:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
         if (offset + ViewPage < total) row.Add(new ButtonBase("Next ▶", $"vp:{album.Id}:{offset + ViewPage}"));
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
-        bf.AddButtonRow("⬅ Back to album", $"al:{album.Id}");
+        bf.AddButtonRow(new ButtonBase("🎲 Random", $"rnd:{album.Id}"), new ButtonBase("⬅ Back", $"al:{album.Id}"));
 
-        await Say($"{H(album.Title)}: items {offset + 1}–{offset + items.Count} of {total}", bf);
+        await ShowViewPage(m, items,
+            failed => $"{H(album.Title)}: items {offset + 1}–{offset + items.Count} of {total}" +
+                      (failed > 0 ? $"\n⚠️ {failed} item(s) could not be sent." : ""),
+            bf);
     }
-    
+
     private async Task OnRandomView(MessageResult m, string[] p)
     {
         var album = await ViewableAlbum(m, p);
@@ -440,9 +445,6 @@ public class AlbumsForm : FormBase
         }
 
         await m.ConfirmAction();
-        if (isPage) await TryDelete(m.MessageId); // replace the old navigation message
-
-        await SendBatch(items);
 
         var bf = new ButtonForm();
         var row = new List<ButtonBase>();
@@ -451,7 +453,10 @@ public class AlbumsForm : FormBase
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
         bf.AddButtonRow(new ButtonBase("🎲 Reshuffle", $"rnd:{album.Id}"), new ButtonBase("⬅ Back", $"al:{album.Id}"));
 
-        await Say($"🎲 {H(album.Title)}: random {offset + 1}–{offset + items.Count} of {total}", bf);
+        await ShowViewPage(m, items,
+            failed => $"🎲 {H(album.Title)}: random {offset + 1}–{offset + items.Count} of {total}" +
+                      (failed > 0 ? $"\n⚠️ {failed} item(s) could not be sent." : ""),
+            bf);
     }
 
     private async Task OnRemoveList(MessageResult m, string[] p)
@@ -624,7 +629,7 @@ public class AlbumsForm : FormBase
 
     // ============================================================ helpers
     /// <summary>Sends a new HTML message.</summary>
-    private Task Say(string html, ButtonForm bf = null) =>
+    private Task<Message> Say(string html, ButtonForm bf = null) =>
         Device.Send(html, bf, parseMode: ParseMode.Html);
 
     /// <summary>Edits the message the button belongs to; falls back to a new message.</summary>
@@ -661,46 +666,154 @@ public class AlbumsForm : FormBase
         }
     }
 
-    private async Task SendOne(MediaItem item, ButtonForm bf)
+    private async Task<int> SendOne(MediaItem item, ButtonForm bf)
     {
-        if (item.Kind == MediaKind.Photo)
-            await Device.SendPhoto(InputFile.FromFileId(item.FileId), buttons: bf);
-        else
-            await Device.SendVideo(InputFile.FromFileId(item.FileId), buttons: bf);
+        var msg = item.Kind == MediaKind.Photo
+            ? await Device.SendPhoto(InputFile.FromFileId(item.FileId), buttons: bf)
+            : await Device.SendVideo(InputFile.FromFileId(item.FileId), buttons: bf);
+        return msg?.MessageId ?? 0;
     }
 
-    /// <summary>Sends up to 10 items as one media group (falls back to one by one).</summary>
-    private async Task SendBatch(List<MediaItem> items)
+    /// <summary>
+    /// Sends items as a media group. If a group fails it is split in halves (down to single items), so a size
+    /// problem or one bad item never hides the rest. Returns how many items could not be sent.
+    /// </summary>
+    private async Task<(List<int> Ids, int Failed)> SendBatch(List<MediaItem> items)
     {
-        if (items.Count >= 2)
+        var ids = new List<int>();
+        if (items.Count == 0) return (ids, 0);
+
+        if (items.Count == 1)
         {
             try
             {
-                var group = items
-                    .Select(i => i.Kind == MediaKind.Photo
-                        ? (IAlbumInputMedia)new InputMediaPhoto(InputFile.FromFileId(i.FileId))
-                        : new InputMediaVideo(InputFile.FromFileId(i.FileId)))
-                    .ToList();
-                await Device.Api(a => a.SendMediaGroup(Device.DeviceId, group));
-                return;
+                var id = await SendOne(items[0], null);
+                if (id != 0) ids.Add(id);
+                return (ids, 0);
             }
-            catch (ApiRequestException)
+            catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
             {
-                // fall through and try the items individually
+                Console.Error.WriteLine($"Media {items[0].Id} could not be sent: {ex.Message}");
+                return (ids, 1);
             }
         }
 
-        foreach (var item in items)
+        var group = items
+            .Select(i => i.Kind == MediaKind.Photo
+                ? (IAlbumInputMedia)new InputMediaPhoto(InputFile.FromFileId(i.FileId))
+                : new InputMediaVideo(InputFile.FromFileId(i.FileId)))
+            .ToList();
+
+        for (var attempt = 0; attempt < 4; attempt++)
         {
             try
             {
-                await SendOne(item, null);
+                var sent = await Device.Dispatch(a => a.SendMediaGroup(Device.DeviceId, group));
+                ids.AddRange(sent.Select(s => s.MessageId));
+                return (ids, 0);
             }
-            catch (ApiRequestException)
+            catch (ApiRequestException ex) when (ex.ErrorCode == 429)
             {
-                Console.Error.WriteLine($"Media {item.Id} could not be sent");
+                var wait = Math.Min(ex.Parameters?.RetryAfter ?? 3, 30) + 1;
+                await Console.Error.WriteLineAsync($"Flood limit on group of {items.Count}, resending in {wait}s");
+                await Task.Delay(TimeSpan.FromSeconds(wait));
+            }
+            catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+            {
+                await Console.Error.WriteLineAsync(
+                    $"Media group of {items.Count} rejected: {ex.Message}. Splitting to isolate the bad item.");
+                var mid = items.Count / 2;
+                var left = await SendBatch(items.Take(mid).ToList());
+                var right = await SendBatch(items.Skip(mid).ToList());
+                left.Ids.AddRange(right.Ids);
+                return (left.Ids, left.Failed + right.Failed);
             }
         }
+
+        await Console.Error.WriteLineAsync($"Gave up on group of {items.Count} after repeated flood limits");
+        return (ids, items.Count);
+    }
+    
+    /// <summary>Shows one page. Edits the existing album in place when possible, otherwise rebuilds it.</summary>
+    private async Task ShowViewPage(MessageResult m, List<MediaItem> items, Func<int, string> textFor, ButtonForm nav)
+    {
+        var clickedNav = m.MessageId == _viewNavId;
+
+        // 1) same number of items and known message ids -> swap the media in place
+        if (clickedNav && _viewEditable && _viewIds.Count == items.Count && await TryEditGroup(items))
+        {
+            await Show(m, textFor(0), nav); // edits the navigation message
+            return;
+        }
+
+        // 2) otherwise rebuild: remove the old view (and the clicked card/stale nav), send a fresh album
+        await ClearView();
+        if (!clickedNav) await TryDelete(m.MessageId);
+
+        var (ids, failed) = await SendBatch(items);
+        _viewIds.AddRange(ids);
+        _viewEditable = failed == 0 && ids.Count == items.Count;
+        var navMsg = await Say(textFor(failed), nav);
+        _viewNavId = navMsg?.MessageId ?? 0;
+    }
+
+    private async Task ClearView(int keepMessageId = 0)
+    {
+        var all = new List<int>(_viewIds);
+        if (_viewNavId != 0 && _viewNavId != keepMessageId) all.Add(_viewNavId);
+        _viewIds.Clear();
+        _viewNavId = 0;
+        _viewEditable = false;
+        if (all.Count == 0) return;
+
+        try
+        {
+            await Device.Raw(a => a.DeleteMessages(Device.DeviceId, all));
+        }
+        catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+        {
+            Console.Error.WriteLine($"Could not delete old view: {ex.Message}");
+        }
+    }
+
+    private async Task<bool> TryEditGroup(List<MediaItem> items)
+    {
+        for (var i = 0; i < items.Count; i++)
+        {
+            InputMedia media = items[i].Kind == MediaKind.Photo
+                ? new InputMediaPhoto(InputFile.FromFileId(items[i].FileId))
+                : new InputMediaVideo(InputFile.FromFileId(items[i].FileId));
+            if (!await EditMedia(_viewIds[i], media)) return false;
+        }
+
+        return true;
+    }
+
+    private async Task<bool> EditMedia(int messageId, InputMedia media)
+    {
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                await Device.Raw(a => a.EditMessageMedia(Device.DeviceId, messageId, media));
+                return true;
+            }
+            catch (ApiRequestException ex) when (ex.ErrorCode == 429)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(ex.Parameters?.RetryAfter ?? 3, 30) + 1));
+            }
+            catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
+            {
+                return true; // same media is already there
+            }
+            catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+            {
+                Console.Error.WriteLine($"Edit of message {messageId} failed: {ex.Message}");
+                return false; // caller falls back to rebuilding the view
+            }
+        }
+
+        return false;
     }
 
     private async Task<Album> OwnedAlbum(MessageResult m, string[] p)
