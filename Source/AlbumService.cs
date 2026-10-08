@@ -253,20 +253,6 @@ public class AlbumService
             .Skip(skip).Take(take).ToListAsync();
     }
 
-    /// <summary>Keyset pagination: stays correct while items are being deleted.</summary>
-    public async Task<List<MediaItem>> ListMediaAfter(long albumId, long afterId, int take)
-    {
-        await using var db = await _factory.CreateDbContextAsync();
-        return await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId && m.Id > afterId)
-            .OrderBy(m => m.Id).Take(take).ToListAsync();
-    }
-
-    public async Task<MediaItem> GetMedia(long mediaId)
-    {
-        await using var db = await _factory.CreateDbContextAsync();
-        return await db.Media.AsNoTracking().FirstOrDefaultAsync(m => m.Id == mediaId);
-    }
-
     /// <summary>Resolves 1-based album positions (ordered by id) to media ids. Call BEFORE deleting.</summary>
     public async Task<List<long>> GetMediaIdsAtPositions(long albumId, IEnumerable<int> positions)
     {
@@ -281,6 +267,19 @@ public class AlbumService
         }
 
         return ids;
+    }
+
+    /// <summary>1-based position of each media item in its album (ordered by Id): the "real" numbers shown as #n.</summary>
+    public async Task<Dictionary<long, int>> GetPositions(long albumId, IEnumerable<long> mediaIds)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var result = new Dictionary<long, int>();
+        foreach (var id in mediaIds)
+        {
+            result[id] = await db.Media.CountAsync(m => m.AlbumId == albumId && m.Id <= id);
+        }
+
+        return result;
     }
 
     public async Task DeleteMedia(IEnumerable<long> mediaIds)
