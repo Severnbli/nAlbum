@@ -293,7 +293,12 @@ public class AlbumsForm : FormBase
                 case "vp":
                     await OnView(m, p);
                     break;
-
+                
+                case "rnd":
+                case "rp":
+                    await OnRandomView(m, p);
+                    break;
+                
                 case "add":
                 {
                     var album = await OwnedAlbum(m, p);
@@ -415,6 +420,38 @@ public class AlbumsForm : FormBase
         bf.AddButtonRow("⬅ Back to album", $"al:{album.Id}");
 
         await Say($"{H(album.Title)}: items {offset + 1}–{offset + items.Count} of {total}", bf);
+    }
+    
+    private async Task OnRandomView(MessageResult m, string[] p)
+    {
+        var album = await ViewableAlbum(m, p);
+        if (album == null) return;
+
+        var isPage = p[0] == "rp";
+        var seed = isPage ? Math.Clamp(Long(p, 2), 1, 2147483646) : Random.Shared.NextInt64(1, 2147483646);
+        var offset = isPage ? Math.Max(Int(p, 3), 0) : 0;
+
+        var total = await _albums.MediaCount(album.Id);
+        var items = await _albums.ListMediaShuffled(album.Id, seed, offset, ViewPage);
+        if (items.Count == 0)
+        {
+            await m.ConfirmAction("This album is empty.", true);
+            return;
+        }
+
+        await m.ConfirmAction();
+        if (isPage) await TryDelete(m.MessageId); // replace the old navigation message
+
+        await SendBatch(items);
+
+        var bf = new ButtonForm();
+        var row = new List<ButtonBase>();
+        if (offset > 0) row.Add(new ButtonBase("◀ Prev", $"rp:{album.Id}:{seed}:{Math.Max(offset - ViewPage, 0)}"));
+        if (offset + ViewPage < total) row.Add(new ButtonBase("Next ▶", $"rp:{album.Id}:{seed}:{offset + ViewPage}"));
+        if (row.Count > 0) bf.AddButtonRow(row.ToArray());
+        bf.AddButtonRow(new ButtonBase("🎲 Reshuffle", $"rnd:{album.Id}"), new ButtonBase("⬅ Back", $"al:{album.Id}"));
+
+        await Say($"🎲 {H(album.Title)}: random {offset + 1}–{offset + items.Count} of {total}", bf);
     }
 
     private async Task OnRemoveList(MessageResult m, string[] p)
@@ -561,7 +598,7 @@ public class AlbumsForm : FormBase
         var bf = new ButtonForm();
         if (!isOwner)
         {
-            bf.AddButtonRow("👀 View", $"view:{album.Id}:0");
+            bf.AddButtonRow(new ButtonBase("👀 View", $"view:{album.Id}:0"), new ButtonBase("🎲 Random", $"rnd:{album.Id}"));
             bf.AddButtonRow(new ButtonBase("🚪 Leave", $"leave:{album.Id}"), new ButtonBase("⬅ Back", "shared:0"));
             return (sb.ToString(), bf);
         }
@@ -576,8 +613,9 @@ public class AlbumsForm : FormBase
             sb.Append("\n🔒 Closed — only you can see it");
         }
 
-        bf.AddButtonRow(new ButtonBase("👀 View", $"view:{album.Id}:0"), new ButtonBase("➕ Add media", $"add:{album.Id}"));
-        bf.AddButtonRow(new ButtonBase("🗑 Remove media", $"rmlist:{album.Id}:0"), new ButtonBase("✏️ Rename", $"ren:{album.Id}"));
+        bf.AddButtonRow(new ButtonBase("👀 View", $"view:{album.Id}:0"), new ButtonBase("🎲 Random", $"rnd:{album.Id}"));
+        bf.AddButtonRow(new ButtonBase("➕ Add media", $"add:{album.Id}"), new ButtonBase("🗑 Remove media", $"rmlist:{album.Id}:0"));
+        bf.AddButtonRow("✏️ Rename", $"ren:{album.Id}");
         bf.AddButtonRow(album.IsOpen ? "🔒 Close album" : "🔓 Open for others", $"toggle:{album.Id}");
         bf.AddButtonRow("❌ Delete album", $"del:{album.Id}");
         bf.AddButtonRow("⬅ My albums", "mine:0");

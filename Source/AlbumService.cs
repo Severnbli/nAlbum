@@ -240,6 +240,18 @@ public class AlbumService
         return await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId)
             .OrderBy(m => m.Id).Skip(skip).Take(take).ToListAsync();
     }
+    
+    /// <summary>
+    /// Random order that is stable for a given seed, so Next/Prev never repeat items.
+    /// (id * seed) mod a prime is a permutation of the ids, i.e. a cheap deterministic shuffle.
+    /// </summary>
+    public async Task<List<MediaItem>> ListMediaShuffled(long albumId, long seed, int skip, int take)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId)
+            .OrderBy(m => (m.Id * seed) % 2147483647L).ThenBy(m => m.Id)
+            .Skip(skip).Take(take).ToListAsync();
+    }
 
     /// <summary>Keyset pagination: stays correct while items are being deleted.</summary>
     public async Task<List<MediaItem>> ListMediaAfter(long albumId, long afterId, int take)
