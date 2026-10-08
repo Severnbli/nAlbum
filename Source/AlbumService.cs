@@ -267,9 +267,26 @@ public class AlbumService
         return await db.Media.AsNoTracking().FirstOrDefaultAsync(m => m.Id == mediaId);
     }
 
-    public async Task DeleteMedia(long mediaId)
+    /// <summary>Resolves 1-based album positions (ordered by id) to media ids. Call BEFORE deleting.</summary>
+    public async Task<List<long>> GetMediaIdsAtPositions(long albumId, IEnumerable<int> positions)
     {
-        await using var db = await _factory.CreateDbContextAsync();
-        await db.Media.Where(m => m.Id == mediaId).ExecuteDeleteAsync();
+        await using var db = _factory.CreateDbContext();
+        var ids = new List<long>();
+        foreach (var pos in positions)
+        {
+            var id = await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId)
+                .OrderBy(m => m.Id).Skip(pos - 1).Take(1)
+                .Select(m => m.Id).FirstOrDefaultAsync();
+            if (id != 0) ids.Add(id);
+        }
+
+        return ids;
+    }
+
+    public async Task DeleteMedia(IEnumerable<long> mediaIds)
+    {
+        var list = mediaIds.ToList();
+        await using var db = _factory.CreateDbContext();
+        await db.Media.Where(m => list.Contains(m.Id)).ExecuteDeleteAsync();
     }
 }

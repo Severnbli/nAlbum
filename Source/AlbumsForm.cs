@@ -34,7 +34,7 @@ public class AlbumsForm : FormBase
         "Create albums of photos and videos and share them with a secret code.\n" +
         "Got a code from a friend? Just send it to me.";
 
-    private enum Mode { Idle, NewTitle, Rename, Adding }
+    private enum Mode { Idle, NewTitle, Rename, Adding, Removing }
 
     private readonly AlbumService _albums;
 
@@ -45,6 +45,8 @@ public class AlbumsForm : FormBase
     private readonly List<int> _viewIds = new(); // message ids of the album currently shown (in order)
     private int _viewNavId;                      // id of its navigation message
     private bool _viewEditable;                  // ids are known and line up with the items
+    private int _removeOffset;   // first item (0-based) of the page shown in remove mode
+    private string _removeNote;  // one-off message shown in the remove navigation text
 
     public AlbumsForm(AlbumService albums)
     {
@@ -110,6 +112,10 @@ public class AlbumsForm : FormBase
 
             case Mode.Adding:
                 await Say("Only photos and videos can be added. Press Done when finished.");
+                return;
+            
+            case Mode.Removing:
+                await OnRemoveNumbers(message, text);
                 return;
 
             default:
@@ -326,6 +332,7 @@ public class AlbumsForm : FormBase
                     var album = await OwnedAlbum(m, p);
                     if (album == null) return;
                     await m.ConfirmAction();
+                    await ClearView(m.MessageId);
                     var summary = _mode == Mode.Adding && _albumId == album.Id
                         ? $"✅ Saved: {_added} added" + (_skipped > 0 ? $", {_skipped} duplicates skipped" : "") + ".\n\n"
                         : "";
@@ -336,12 +343,7 @@ public class AlbumsForm : FormBase
                 }
 
                 case "rmlist":
-                case "rmn":
-                    await OnRemoveList(m, p);
-                    break;
-
-                case "rm":
-                    await OnRemoveMedia(m, p);
+                    await OnRemoveView(m, p);
                     break;
 
                 case "toggle":
@@ -421,7 +423,7 @@ public class AlbumsForm : FormBase
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
         bf.AddButtonRow(new ButtonBase("🎲 Random", $"rnd:{album.Id}"), new ButtonBase("⬅ Back", $"al:{album.Id}"));
 
-        await ShowViewPage(m, items,
+        await ShowViewPage(m.MessageId, items,
             failed => $"{H(album.Title)}: items {offset + 1}–{offset + items.Count} of {total}" +
                       (failed > 0 ? $"\n⚠️ {failed} item(s) could not be sent." : ""),
             bf);
@@ -453,7 +455,7 @@ public class AlbumsForm : FormBase
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
         bf.AddButtonRow(new ButtonBase("🎲 Reshuffle", $"rnd:{album.Id}"), new ButtonBase("⬅ Back", $"al:{album.Id}"));
 
-        await ShowViewPage(m, items,
+        await ShowViewPage(m.MessageId, items,
             failed => $"🎲 {H(album.Title)}: random {offset + 1}–{offset + items.Count} of {total}" +
                       (failed > 0 ? $"\n⚠️ {failed} item(s) could not be sent." : ""),
             bf);
@@ -495,21 +497,6 @@ public class AlbumsForm : FormBase
         if (hasMore) nav.AddButtonRow("Next ▶", $"rmn:{album.Id}:{items[^1].Id}");
         nav.AddButtonRow("⬅ Back to album", $"al:{album.Id}");
         await Say("Tap 🗑 under an item to remove it from the album.", nav);
-    }
-
-    private async Task OnRemoveMedia(MessageResult m, string[] p)
-    {
-        var media = await _albums.GetMedia(Long(p, 1));
-        var album = media == null ? null : await _albums.GetAlbum(media.AlbumId);
-        if (album == null || album.OwnerId != UserId)
-        {
-            await m.ConfirmAction("Item not found or you are not the owner.", true);
-            return;
-        }
-
-        await _albums.DeleteMedia(media.Id);
-        await m.ConfirmAction("Removed");
-        await TryDelete(m.MessageId);
     }
 
     private async Task OnToggle(MessageResult m, string[] p)
@@ -666,19 +653,24 @@ public class AlbumsForm : FormBase
         }
     }
 
-    private async Task<int> SendOne(MediaItem item, ButtonForm bf)
+    private async Task<int> SendOne(MediaItem item, ButtonForm bf, string caption = null)
     {
         var msg = item.Kind == MediaKind.Photo
-            ? await Device.SendPhoto(InputFile.FromFileId(item.FileId), buttons: bf)
-            : await Device.SendVideo(InputFile.FromFileId(item.FileId), buttons: bf);
+            ? await Device.SendPhoto(InputFile.FromFileId(item.FileId), caption, buttons: bf)
+            : await Device.SendVideo(InputFile.FromFileId(item.FileId), caption, buttons: bf);
         return msg?.MessageId ?? 0;
     }
 
-    /// <summary>
-    /// Sends items as a media group. If a group fails it is split in halves (down to single items), so a size
-    /// problem or one bad item never hides the rest. Returns how many items could not be sent.
-    /// </summary>
-    private async Task<(List<int> Ids, int Failed)> SendBatch(List<MediaItem> items)
+    /// <summary>firstNumber > 0 puts a "#n" caption on each item (used by remove mode).</summary>
+    private static string NumberCaption(int firstNumber, int index) =>
+        firstNumber > 0 ? $"#{firstNumber + index}" : null;
+
+    private static InputMedia ToInput(MediaItem i, string caption) =>
+        i.Kind == MediaKind.Photo
+            ? new InputMediaPhoto(InputFile.FromFileId(i.FileId)) { Caption = caption }
+            : new InputMediaVideo(InputFile.FromFileId(i.FileId)) { Caption = caption };
+
+    private async Task<(List<int> Ids, int Failed)> SendBatch(List<MediaItem> items, int firstNumber = 0)
     {
         var ids = new List<int>();
         if (items.Count == 0) return (ids, 0);
@@ -687,21 +679,19 @@ public class AlbumsForm : FormBase
         {
             try
             {
-                var id = await SendOne(items[0], null);
+                var id = await SendOne(items[0], null, NumberCaption(firstNumber, 0));
                 if (id != 0) ids.Add(id);
                 return (ids, 0);
             }
             catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
             {
-                Console.Error.WriteLine($"Media {items[0].Id} could not be sent: {ex.Message}");
+                await Console.Error.WriteLineAsync($"Media {items[0].Id} could not be sent: {ex.Message}");
                 return (ids, 1);
             }
         }
 
         var group = items
-            .Select(i => i.Kind == MediaKind.Photo
-                ? (IAlbumInputMedia)new InputMediaPhoto(InputFile.FromFileId(i.FileId))
-                : new InputMediaVideo(InputFile.FromFileId(i.FileId)))
+            .Select((item, idx) => (IAlbumInputMedia)ToInput(item, NumberCaption(firstNumber, idx)))
             .ToList();
 
         for (var attempt = 0; attempt < 4; attempt++)
@@ -723,8 +713,8 @@ public class AlbumsForm : FormBase
                 await Console.Error.WriteLineAsync(
                     $"Media group of {items.Count} rejected: {ex.Message}. Splitting to isolate the bad item.");
                 var mid = items.Count / 2;
-                var left = await SendBatch(items.Take(mid).ToList());
-                var right = await SendBatch(items.Skip(mid).ToList());
+                var left = await SendBatch(items.Take(mid).ToList(), firstNumber);
+                var right = await SendBatch(items.Skip(mid).ToList(), firstNumber > 0 ? firstNumber + mid : 0);
                 left.Ids.AddRange(right.Ids);
                 return (left.Ids, left.Failed + right.Failed);
             }
@@ -733,28 +723,62 @@ public class AlbumsForm : FormBase
         await Console.Error.WriteLineAsync($"Gave up on group of {items.Count} after repeated flood limits");
         return (ids, items.Count);
     }
-    
-    /// <summary>Shows one page. Edits the existing album in place when possible, otherwise rebuilds it.</summary>
-    private async Task ShowViewPage(MessageResult m, List<MediaItem> items, Func<int, string> textFor, ButtonForm nav)
-    {
-        var clickedNav = m.MessageId == _viewNavId;
 
-        // 1) same number of items and known message ids -> swap the media in place
-        if (clickedNav && _viewEditable && _viewIds.Count == items.Count && await TryEditGroup(items))
+    private async Task<bool> TryEditGroup(List<MediaItem> items, int firstNumber)
+    {
+        for (var i = 0; i < items.Count; i++)
         {
-            await Show(m, textFor(0), nav); // edits the navigation message
+            if (!await EditMedia(_viewIds[i], ToInput(items[i], NumberCaption(firstNumber, i)))) return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Shows one page. clickedMessageId = the message the user clicked (card or navigation message),
+    /// or the navigation message id when a typed text triggered the refresh. Edits in place when possible.
+    /// </summary>
+    private async Task ShowViewPage(int clickedMessageId, List<MediaItem> items, Func<int, string> textFor,
+        ButtonForm nav, int firstNumber = 0)
+    {
+        var clickedNav = _viewNavId != 0 && clickedMessageId == _viewNavId;
+
+        if (clickedNav && _viewEditable && _viewIds.Count == items.Count && await TryEditGroup(items, firstNumber))
+        {
+            await EditNav(textFor(0), nav);
             return;
         }
 
-        // 2) otherwise rebuild: remove the old view (and the clicked card/stale nav), send a fresh album
         await ClearView();
-        if (!clickedNav) await TryDelete(m.MessageId);
+        if (!clickedNav && clickedMessageId != 0) await TryDelete(clickedMessageId); // the card / a stale nav
 
-        var (ids, failed) = await SendBatch(items);
+        var (ids, failed) = await SendBatch(items, firstNumber);
         _viewIds.AddRange(ids);
         _viewEditable = failed == 0 && ids.Count == items.Count;
         var navMsg = await Say(textFor(failed), nav);
         _viewNavId = navMsg?.MessageId ?? 0;
+    }
+
+    /// <summary>Edits the navigation message of the current view (or sends one if there is none).</summary>
+    private async Task EditNav(string html, ButtonForm bf)
+    {
+        if (_viewNavId == 0)
+        {
+            _viewNavId = (await Say(html, bf))?.MessageId ?? 0;
+            return;
+        }
+
+        try
+        {
+            await Device.Edit(_viewNavId, html, bf, ParseMode.Html);
+        }
+        catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
+        {
+        }
+        catch (ApiRequestException ex)
+        {
+            Console.Error.WriteLine($"Could not edit navigation message: {ex.Message}");
+        }
     }
 
     private async Task ClearView(int keepMessageId = 0)
@@ -814,6 +838,142 @@ public class AlbumsForm : FormBase
         }
 
         return false;
+    }
+    
+    private async Task OnRemoveView(MessageResult m, string[] p)
+    {
+        var album = await OwnedAlbum(m, p);
+        if (album == null) return;
+
+        var total = await _albums.MediaCount(album.Id);
+        if (total == 0)
+        {
+            await m.ConfirmAction("Nothing to remove.", true);
+            return;
+        }
+
+        await m.ConfirmAction();
+        _mode = Mode.Removing;
+        _albumId = album.Id;
+        _removeOffset = Math.Max(Int(p, 2), 0);
+        _removeNote = null;
+        await RenderRemovePage(album, m.MessageId);
+    }
+
+    private async Task RenderRemovePage(Album album, int clickedMessageId = 0)
+    {
+        var total = await _albums.MediaCount(album.Id);
+        if (total == 0)
+        {
+            await ClearView();
+            _mode = Mode.Idle;
+            var (card, cardButtons) = await BuildCard(album);
+            await Say("✅ The album is now empty.\n\n" + card, cardButtons);
+            return;
+        }
+
+        if (_removeOffset >= total) _removeOffset = (total - 1) / ViewPage * ViewPage; // page vanished
+        var items = await _albums.ListMedia(album.Id, _removeOffset, ViewPage);
+        var (text, bf) = RemoveNav(album, total, _removeOffset, items.Count);
+        _removeNote = null;
+
+        await ShowViewPage(
+            clickedMessageId == 0 ? _viewNavId : clickedMessageId,
+            items,
+            failed => text + (failed > 0 ? $"\n⚠️ {failed} item(s) could not be shown." : ""),
+            bf,
+            firstNumber: _removeOffset + 1);
+    }
+
+    private (string Text, ButtonForm Buttons) RemoveNav(Album album, int total, int offset, int count)
+    {
+        var text = $"🗑 <b>{H(album.Title)}</b>: items {offset + 1}–{offset + count} of {total}\n" +
+                   "Type the number(s) to delete, e.g. <code>12</code>, <code>12 15 18</code> or <code>12-15</code>.";
+        if (_removeNote != null) text = _removeNote + "\n\n" + text;
+
+        var bf = new ButtonForm();
+        var row = new List<ButtonBase>();
+        if (offset > 0) row.Add(new ButtonBase("◀ Prev", $"rmlist:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
+        if (offset + ViewPage < total) row.Add(new ButtonBase("Next ▶", $"rmlist:{album.Id}:{offset + ViewPage}"));
+        if (row.Count > 0) bf.AddButtonRow(row.ToArray());
+        bf.AddButtonRow("✅ Done", $"done:{album.Id}");
+        return (text, bf);
+    }
+
+    private async Task OnRemoveNumbers(MessageResult message, string text)
+    {
+        var album = await _albums.GetAlbum(_albumId);
+        if (album == null || album.OwnerId != UserId)
+        {
+            _mode = Mode.Idle;
+            return;
+        }
+
+        await TryDelete(message.MessageId); // keep the chat tidy: remove the typed message
+
+        var positions = ParsePositions(text);
+        var total = await _albums.MediaCount(album.Id);
+        var deleted = false;
+
+        if (positions == null || positions.Count == 0)
+        {
+            _removeNote = "⚠️ I couldn't read that.";
+        }
+        else
+        {
+            var valid = positions.Where(n => n >= 1 && n <= total).ToList();
+            var ids = await _albums.GetMediaIdsAtPositions(album.Id, valid); // resolve before deleting
+            if (ids.Count == 0)
+            {
+                _removeNote = "⚠️ No items with those numbers.";
+            }
+            else
+            {
+                await _albums.DeleteMedia(ids);
+                _removeNote = $"✅ Deleted {ids.Count} item(s)" +
+                              (valid.Count < positions.Count ? " (some numbers were out of range)." : ".");
+                deleted = true;
+            }
+        }
+
+        if (deleted)
+        {
+            await RenderRemovePage(album); // refreshes the album in place
+            return;
+        }
+
+        // nothing deleted: only update the navigation text
+        var count = Math.Min(ViewPage, Math.Max(total - _removeOffset, 0));
+        var (navText, bf) = RemoveNav(album, total, _removeOffset, count);
+        _removeNote = null;
+        await EditNav(navText, bf);
+    }
+
+    /// <summary>"12", "12 15 18", "12-15", "3, 7-9" -> set of numbers; null if unreadable.</summary>
+    private static SortedSet<int> ParsePositions(string text)
+    {
+        var set = new SortedSet<int>();
+        foreach (var token in text.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = token.Split('-');
+            if (parts.Length == 1 && int.TryParse(parts[0], out var one))
+            {
+                set.Add(one);
+            }
+            else if (parts.Length == 2 && int.TryParse(parts[0], out var lo) && int.TryParse(parts[1], out var hi)
+                     && lo <= hi && hi - lo < 100)
+            {
+                for (var n = lo; n <= hi; n++) set.Add(n);
+            }
+            else
+            {
+                return null;
+            }
+
+            if (set.Count > 100) return null;
+        }
+
+        return set;
     }
 
     private async Task<Album> OwnedAlbum(MessageResult m, string[] p)
