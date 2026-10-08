@@ -1071,7 +1071,7 @@ public class AlbumsForm : FormBase
         }
         catch (Exception ex) when (ex is not ApiRequestException)
         {
-            Console.Error.WriteLine($"Action '{data}' failed: {ex}");
+            await Console.Error.WriteLineAsync($"Action '{data}' failed: {ex}");
             await Say("⚠️ Something went wrong. Please try again.");
         }
     }
@@ -1491,7 +1491,7 @@ public class AlbumsForm : FormBase
         }
         catch (ApiRequestException ex)
         {
-            Console.Error.WriteLine($"Could not edit navigation message: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Could not edit navigation message: {ex.Message}");
         }
     }
 
@@ -1506,11 +1506,11 @@ public class AlbumsForm : FormBase
 
         try
         {
-            await Device.Raw(a => a.DeleteMessages(Device.DeviceId, all));
+            await Device.Dispatch(a => a.DeleteMessages(Device.DeviceId, all));
         }
         catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
         {
-            Console.Error.WriteLine($"Could not delete old view: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Could not delete old view: {ex.Message}");
         }
     }
 
@@ -1520,7 +1520,7 @@ public class AlbumsForm : FormBase
         {
             try
             {
-                await Device.Raw(a => a.EditMessageMedia(Device.DeviceId, messageId, media));
+                await Device.Dispatch(a => a.EditMessageMedia(Device.DeviceId, messageId, media));
                 return true;
             }
             catch (ApiRequestException ex) when (ex.ErrorCode == 429)
@@ -1533,7 +1533,7 @@ public class AlbumsForm : FormBase
             }
             catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
             {
-                Console.Error.WriteLine($"Edit of message {messageId} failed: {ex.Message}");
+                await Console.Error.WriteLineAsync($"Edit of message {messageId} failed: {ex.Message}");
                 return false; // caller falls back to rebuilding the view
             }
         }
