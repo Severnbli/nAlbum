@@ -1,6 +1,6 @@
 ﻿{
   "name": "English",
-  "flag": "????",
+  "flag": "\uD83C\uDDFA\uD83C\uDDF8",
   "translations": {
     "👋 <b>Albums bot</b>\n\nCreate albums of photos and videos and share them with a secret code.\nGot a code from a friend? Just send it to me.": "👋 <b>Albums bot</b>\n\nCreate albums of photos and videos and share them with a secret code.\nGot a code from a friend? Just send it to me.",
     "➕ New album": "➕ New album",
@@ -9,9 +9,6 @@
     "📊 Detailed statistics": "📊 Detailed statistics",
     "🌐 Language": "🌐 Language",
     "📊 Albums: {0} · 👀 Views: {1} · 📄 Pages watched: {2}": "📊 Albums: {0} · 👀 Views: {1} · 📄 Pages watched: {2}",
-    "🇬🇧 English": "🇬🇧 English",
-    "🇷🇺 Русский": "🇷🇺 Русский",
-    "🇧🇾 Беларуская": "🇧🇾 Беларуская",
     "🌐 Auto-detect": "🌐 Auto-detect",
     "Choose your language:": "Choose your language:",
     "Language updated.": "Language updated.",
@@ -53,7 +50,7 @@
     "👀 View": "👀 View",
     "🎲 Random": "🎲 Random",
     "⬅ Back": "⬅ Back",
-    "👀 Views: {0} · 📄 Pages: {1}": "👀 Views: {0} · 📄 Pages: {1}",
+    "👀 Views: {0} · 📄 Pages: {1}": "👀 Views: {0} · 📄 Pages watched: {1}",
     "🖼 Media: {0}": "🖼 Media: {0}",
     " · last number #{0}": " · last number #{0}",
     "\n🔓 Open for others\nCode: <code>{0}</code>": "\n🔓 Open for others\nCode: <code>{0}</code>",

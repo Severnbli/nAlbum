@@ -1,6 +1,6 @@
 ﻿{
-  "name": "???????",
-  "flag": "????",
+  "name": "Русский",
+  "flag": "\uD83C\uDDF7\uD83C\uDDFA",
   "translations": {
     "👋 <b>Albums bot</b>\n\nCreate albums of photos and videos and share them with a secret code.\nGot a code from a friend? Just send it to me.": "👋 <b>Бот альбомов</b>\n\nСоздавайте альбомы из фото и видео и делитесь ими по секретному коду.\nПолучили код от друга? Просто отправьте его мне.",
     "➕ New album": "➕ Новый альбом",
@@ -9,9 +9,6 @@
     "📊 Detailed statistics": "📊 Подробная статистика",
     "🌐 Language": "🌐 Язык",
     "📊 Albums: {0} · 👀 Views: {1} · 📄 Pages watched: {2}": "📊 Альбомы: {0} · 👀 Просмотры: {1} · 📄 Просмотрено страниц: {2}",
-    "🇬🇧 English": "🇬🇧 Английский",
-    "🇷🇺 Русский": "🇷🇺 Русский",
-    "🇧🇾 Беларуская": "🇧🇾 Белорусский",
     "🌐 Auto-detect": "🌐 Автоопределение",
     "Choose your language:": "Выберите язык:",
     "Language updated.": "Язык изменён.",
@@ -53,7 +50,7 @@
     "👀 View": "👀 Просмотр",
     "🎲 Random": "🎲 Случайно",
     "⬅ Back": "⬅ Назад",
-    "👀 Views: {0} · 📄 Pages: {1}": "👀 Просмотры: {0} · 📄 Страницы: {1}",
+    "👀 Views: {0} · 📄 Pages: {1}": "👀 Просмотры: {0} · 📄 Просмотрено страниц: {1}",
     "🖼 Media: {0}": "🖼 Медиафайлы: {0}",
     " · last number #{0}": " · последний номер #{0}",
     "\n🔓 Open for others\nCode: <code>{0}</code>": "\n🔓 Открыт для других\nКод: <code>{0}</code>",
