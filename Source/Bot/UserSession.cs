@@ -1,3 +1,4 @@
+﻿using System.Collections.Concurrent;
 using nAlbum.Data;
 
 namespace nAlbum.Bot;
@@ -18,7 +19,13 @@ public sealed class AddState
     public int Added;                 // was _added
     public int Skipped;               // was _skipped
     public string LastGroupId;        // was _lastGroupId
+    public int Removed;               // media deleted from the chat before Done
+    public ConcurrentDictionary<int, PendingMedia> Pending { get; } = new();   // message id -> media waiting for Done
+
+    public void Reset() { Added = Skipped = Removed = 0; LastGroupId = null; Pending.Clear(); }
 }
+
+public sealed record PendingMedia(MediaKind Kind, string FileId, string UniqueId, bool InGroup);
 
 public sealed class ViewState
 {
@@ -40,3 +47,4 @@ public sealed class RemovalState
 
     public void Clear() { Pending.Clear(); Kept.Clear(); AlbumId = 0; PreviewOffset = 0; PromptMsgId = 0; } // was ClearPending()
 }
+

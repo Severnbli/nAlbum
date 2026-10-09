@@ -1,4 +1,4 @@
-using nAlbum.Bot.Screens;
+﻿using nAlbum.Bot.Screens;
 using nAlbum.Localization;
 using nAlbum.Config;
 using nAlbum.Services;
@@ -82,6 +82,12 @@ public class AlbumsForm : FormBase
         await _add.OnMedia(data);                                    // adds in Mode.Adding, otherwise shows a hint
     }
 
+    public override async Task Edited(MessageResult message)
+    {
+        if (!_ctx.IsPrivate) return;
+        await _add.OnEdited(message);
+    }
+
     public override async Task Action(MessageResult m)
     {
         var data = m.RawData;
@@ -97,7 +103,8 @@ public class AlbumsForm : FormBase
         catch (Exception ex) when (ex is not ApiRequestException)
         {
             await Console.Error.WriteLineAsync($"Action '{data}' failed: {ex}");
-            await _ctx.Ui.Say(_ctx.T("⚠️ Something went wrong. Please try again."));
+            await _ctx.Ui.Say(_ctx.T("âš ï¸ Something went wrong. Please try again."));
         }
     }
 }
+

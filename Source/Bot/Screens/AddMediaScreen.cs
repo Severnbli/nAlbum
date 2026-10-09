@@ -1,4 +1,4 @@
-using nAlbum.Bot.Ui;
+﻿using nAlbum.Bot.Ui;
 using nAlbum.Data;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -32,10 +32,10 @@ public sealed class AddMediaScreen : Screen
                 await m.ConfirmAction();
                 Ctx.Session.Mode = Mode.Adding;
                 Ctx.Session.AlbumId = album.Id;
-                Ctx.Session.Add.Added = Ctx.Session.Add.Skipped = 0;
+                Ctx.Session.Add.Reset();
                 var bf = new ButtonForm();
-                bf.AddButtonRow(Ctx.T("✅ Done"), $"done:{album.Id}");
-                await Ctx.Ui.Say(Ctx.F("📥 Adding to <b>{0}</b>.\nSend or forward photos and videos – as many as you like. Duplicates are skipped automatically.\nPress <b>Done</b> when finished.", Text.H(album.Title)), bf);
+                bf.AddButtonRow(Ctx.T("âœ… Done"), $"done:{album.Id}");
+                await Ctx.Ui.Say(Ctx.F("ðŸ“¥ Adding to <b>{0}</b>.\nSend or forward photos and videos â€“ as many as you like. Nothing is saved until you press <b>Done</b>; duplicates are skipped automatically.\nMedia you edit or delete before then is tracked.", Text.H(album.Title)), bf);
                 break;
             }
 
@@ -46,9 +46,14 @@ public sealed class AddMediaScreen : Screen
                 await m.ConfirmAction();
                 await Ctx.View.ClearView(m.MessageId);
                 var add = Ctx.Session.Add;
-                var summary = Ctx.Session.Mode == Mode.Adding && Ctx.Session.AlbumId == album.Id
-                    ? Ctx.F("✅ Saved: {0} added", add.Added) + (add.Skipped > 0 ? Ctx.F(", {0} duplicates skipped", add.Skipped) : "") + ".\n\n"
-                    : "";
+                var summary = "";
+                if (Ctx.Session.Mode == Mode.Adding && Ctx.Session.AlbumId == album.Id)
+                {
+                    await Commit(album.Id);
+                    summary = Ctx.F("✅ Saved: {0} added", add.Added)
+                              + (add.Skipped > 0 ? Ctx.F(", {0} duplicates skipped", add.Skipped) : "")
+                              + (add.Removed > 0 ? Ctx.F(", {0} deleted from the chat", add.Removed) : "") + ".\n\n";
+                }
                 Ctx.Session.Mode = Mode.Idle;
                 var (card, bf) = await Ctx.Cards.Build(album);
                 await Ctx.Ui.Show(m, summary + card, bf);
@@ -60,19 +65,7 @@ public sealed class AddMediaScreen : Screen
     public override async Task OnMedia(DataResult data)
     {
         var msg = data.Message;
-        MediaKind kind;
-        string fileId, uniqueId;
-
-        if (data.Type == MessageType.Photo && msg.Photo is { Length: > 0 })
-        {
-            var photo = msg.Photo[^1]; // largest size
-            (kind, fileId, uniqueId) = (MediaKind.Photo, photo.FileId, photo.FileUniqueId);
-        }
-        else if (data.Type == MessageType.Video && msg.Video != null)
-        {
-            (kind, fileId, uniqueId) = (MediaKind.Video, msg.Video.FileId, msg.Video.FileUniqueId);
-        }
-        else
+        if (!TryExtract(msg, out var pending))
         {
             if (Ctx.Session.Mode == Mode.Adding) await Ctx.Ui.Say(Ctx.T("Only photos and videos can be added. Press Done when finished."));
             return;
@@ -84,21 +77,85 @@ public sealed class AddMediaScreen : Screen
             return;
         }
 
-        var album = await Ctx.Albums.GetAlbum(Ctx.Session.AlbumId);
-        if (album == null || album.OwnerId != Ctx.UserId)
-        {
-            Ctx.Session.Mode = Mode.Idle;
-            return;
-        }
-
-        var added = await Ctx.Media.AddMedia(album.Id, kind, fileId, uniqueId);
-        if (added) Ctx.Session.Add.Added++;
-        else Ctx.Session.Add.Skipped++;
+        Ctx.Session.Add.Pending[msg.MessageId] = pending;
 
         // Telegram applies a reaction on any item of a media group to the first message of the group,
         // so react once per group.
-        if (msg.MediaGroupId == null) await React(msg.MessageId, added ? "👍" : "🤔");
-        else if (FirstOfGroup(msg)) await React(msg.MessageId, "👍");
+        if (msg.MediaGroupId == null || FirstOfGroup(msg)) await React(msg.MessageId, "👀");
+    }
+
+    public async Task OnEdited(MessageResult m)
+    {
+        var msg = m.UpdateData.EditedMessage;
+        if (msg == null || Ctx.Session.Mode != Mode.Adding) return;
+        var pending = Ctx.Session.Add.Pending;
+        if (!pending.ContainsKey(msg.MessageId)) return;
+
+        if (TryExtract(msg, out var updated)) pending[msg.MessageId] = updated;   // media replaced (or only caption changed)
+        else pending.TryRemove(msg.MessageId, out _);
+    }
+
+    private static bool TryExtract(Message msg, out PendingMedia media)
+    {
+        var inGroup = msg.MediaGroupId != null;
+        media = null;
+        if (msg.Photo is { Length: > 0 })
+        {
+            var photo = msg.Photo[^1]; // largest size
+            media = new PendingMedia(MediaKind.Photo, photo.FileId, photo.FileUniqueId, inGroup);
+        }
+        else if (msg.Video != null)
+        {
+            media = new PendingMedia(MediaKind.Video, msg.Video.FileId, msg.Video.FileUniqueId, inGroup);
+        }
+        return media != null;
+    }
+
+    /// <summary>Saves pending media still present in the chat. Bots get no delete events, so presence is probed.</summary>
+    private async Task Commit(long albumId)
+    {
+        var add = Ctx.Session.Add;
+        foreach (var (messageId, media) in add.Pending.OrderBy(kv => kv.Key))
+        {
+            if (!await StillInChat(messageId, media.InGroup))
+            {
+                add.Removed++;
+                continue;
+            }
+
+            if (await Ctx.Media.AddMedia(albumId, media.Kind, media.FileId, media.UniqueId)) add.Added++;
+            else add.Skipped++;
+        }
+        add.Pending.Clear();
+    }
+
+    private async Task<bool> StillInChat(int messageId, bool inGroup)
+    {
+        try
+        {
+            if (inGroup)
+            {
+                // reactions on group items hit the first message, so probe by copying and removing the copy
+                var copy = await Ctx.Device.Api(a => a.CopyMessage(Ctx.Device.DeviceId, Ctx.Device.DeviceId, messageId));
+                await Ctx.Device.Api(a => a.DeleteMessage(Ctx.Device.DeviceId, copy.Id));
+            }
+            else
+            {
+                await Ctx.Device.Api(a => a.SetMessageReaction(
+                    Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = "👍" }]));
+            }
+            return true;
+        }
+        catch (ApiRequestException ex) when (ex.ErrorCode == 400
+            && (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("MESSAGE_ID_INVALID", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+        catch (ApiRequestException)
+        {
+            return true;   // cannot tell; keep the media rather than lose it
+        }
     }
 
     private bool FirstOfGroup(Message msg)
@@ -122,3 +179,4 @@ public sealed class AddMediaScreen : Screen
         }
     }
 }
+
