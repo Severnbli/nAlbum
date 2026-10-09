@@ -34,8 +34,8 @@ public sealed class AddMediaScreen : Screen
                 Ctx.Session.AlbumId = album.Id;
                 Ctx.Session.Add.Reset();
                 var bf = new ButtonForm();
-                bf.AddButtonRow(Ctx.T("âœ… Done"), $"done:{album.Id}");
-                await Ctx.Ui.Say(Ctx.F("ðŸ“¥ Adding to <b>{0}</b>.\nSend or forward photos and videos â€“ as many as you like. Nothing is saved until you press <b>Done</b>; duplicates are skipped automatically.\nMedia you edit or delete before then is tracked.", Text.H(album.Title)), bf);
+                bf.AddButtonRow(Ctx.T("✅ Done"), $"done:{album.Id}");
+                await Ctx.Ui.Say(Ctx.F("📥 Adding to <b>{0}</b>.\nSend or forward photos and videos – as many as you like. Nothing is saved until you press <b>Done</b>; duplicates are skipped automatically.\nMedia you edit or delete before then is tracked.", Text.H(album.Title)), bf);
                 break;
             }
 
