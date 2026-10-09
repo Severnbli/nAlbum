@@ -137,6 +137,7 @@ public sealed class AddMediaScreen : Screen
         Message copy;
         try
         {
+            await Ctx.SetAction(ChatAction.Typing);
             copy = await Ctx.Device.Dispatch(a => a.ForwardMessage(
                 Ctx.Device.DeviceId, Ctx.Device.DeviceId, messageId, disableNotification: true));
         }
@@ -177,4 +178,3 @@ public sealed class AddMediaScreen : Screen
         }
     }
 }
-

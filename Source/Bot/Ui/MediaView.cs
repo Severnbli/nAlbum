@@ -3,6 +3,7 @@ using nAlbum.Data;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using TelegramBotBase.Form;
 using TelegramBotBase.Sessions;
 using nAlbum.Localization;
@@ -33,6 +34,7 @@ public sealed class MediaView
 
     public async Task<int> SendOne(MediaItem item, ButtonForm bf, string caption = null)
     {
+        await Ctx.SetAction(item.Kind == MediaKind.Photo ? ChatAction.UploadPhoto : ChatAction.UploadVideo);
         var msg = item.Kind == MediaKind.Photo
             ? await Ctx.Device.SendPhoto(InputFile.FromFileId(item.FileId), caption, buttons: bf)
             : await Ctx.Device.SendVideo(InputFile.FromFileId(item.FileId), caption, buttons: bf);
@@ -73,6 +75,9 @@ public sealed class MediaView
         {
             try
             {
+                await Ctx.SetAction(items[0].Kind == MediaKind.Photo
+                    ? ChatAction.UploadPhoto
+                    : ChatAction.UploadVideo);
                 var sent = await Ctx.Device.Dispatch(a => a.SendMediaGroup(Ctx.Device.DeviceId, group));
                 ids.AddRange(sent.Select(s => s.MessageId));
                 return (ids, 0);
@@ -102,6 +107,9 @@ public sealed class MediaView
     public async Task<bool> TryEditGroup(List<MediaItem> items, IReadOnlyList<string> captions)
     {
         var v = Ctx.Session.View;
+        if (items.Count > 0)
+            await Ctx.SetAction(items[0].Kind == MediaKind.Photo ? ChatAction.UploadPhoto : ChatAction.UploadVideo);
+
         for (var i = 0; i < items.Count; i++)
         {
             if (!await EditMedia(v.Ids[i], ToInput(items[i], CaptionAt(captions, i)))) return false;

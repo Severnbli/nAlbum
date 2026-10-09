@@ -2,8 +2,10 @@ using nAlbum.Bot.Ui;
 using nAlbum.Config;
 using nAlbum.Localization;
 using nAlbum.Services;
+using Telegram.Bot.Exceptions;
 using TelegramBotBase.Form;
 using TelegramBotBase.Interfaces;
+using Telegram.Bot.Types.Enums;
 
 namespace nAlbum.Bot;
 
@@ -44,4 +46,16 @@ public sealed class BotContext
 
     public string T(string key) => Localization.T(Language, key);
     public string F(string key, params object[] args) => Localization.F(Language, key, args);
+
+    public async Task SetAction(ChatAction action)
+    {
+        try
+        {
+            await Device.SetAction(action);
+        }
+        catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+        {
+            await Console.Error.WriteLineAsync($"Could not set chat action '{action}': {ex.Message}");
+        }
+    }
 }
