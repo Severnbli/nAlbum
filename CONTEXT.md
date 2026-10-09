@@ -14,7 +14,9 @@ or host media. The bot runs as one process and has no web server or job queue.
 
 ```text
 Program.cs                         composition root, database startup, bot startup
-Source/Config/AppConfig.cs         BOT_TOKEN, DB_PATH, ADMIN_IDS
+Source/Config/AppConfig.cs         BOT_TOKEN, DB_PATH, ADMIN_IDS, LOCALES_DIR
+Source/Localization/               LocalizationService: loads Locales/*.json, T/F lookups
+Locales/                           one JSON file per language (en, ru, be)
 Source/Data/Entities.cs            EF entities and domain data
 Source/Data/AlbumDb.cs             EF model, keys, indexes, relationships
 Source/Data/SchemaUpgrader.cs       SQLite user_version upgrades and backups
@@ -22,6 +24,7 @@ Source/Services/AlbumService.cs    albums, access codes, grants, ownership data
 Source/Services/MediaService.cs    adding, listing, numbering, deleting media
 Source/Services/CodeThrottle.cs    in-memory invalid-code throttle
 Source/Services/StatsService.cs    usage tracking, aggregates, lifetime counters
+Source/Services/UserPreferenceService.cs  saved per-user language choice
 Source/Bot/AlbumsForm.cs            sole Telegram form and update router
 Source/Bot/BotContext.cs            per-form dependencies and UI helpers
 Source/Bot/UserSession.cs           transient per-user conversation/view state
@@ -100,9 +103,24 @@ Services -> IDbContextFactory<AlbumDb> -> SQLite
   backup until the upgraded database has been confirmed healthy.
 - SQLite allows multiple `NULL` values in the unique `Album.AccessCode` index.
 - `AlbumAccess` and `AlbumViewStat` use composite keys; `Counter` is keyed by
-  `Name`. Keep raw SQL in `StatsService` synchronized with EF table/column names.
+  `Name`; `UserPreference` by `UserId` (schema version 3). Keep raw SQL in `StatsService` synchronized with EF table/column names.
 - Album-dependent media, access, and view-stat rows must be removed on album
   deletion. Preserve transaction boundaries and cascade behavior.
+
+### Localization
+
+- All user-visible bot text goes through `Ctx.T(text)` / `Ctx.F(format, args)`.
+  The English text is the lookup key and the fallback; never concatenate
+  translatable sentences, use `{0}` placeholders instead.
+- Languages are `Locales/<code>.json` files (`name`, optional `flag`,
+  `translations`), loaded once at startup by `LocalizationService`; the
+  language menu is built from the loaded files, so adding a language must not
+  require code changes. Keep `en.json` complete when adding or changing a key,
+  and keep placeholders and HTML tags identical in every translation.
+- `BotContext.Language` is resolved per update in `AlbumsForm.PreLoad`: saved
+  preference (`UserPreference`, null = automatic) if the language still exists,
+  otherwise detected from the Telegram language code, otherwise `en`.
+- Bot command descriptions in `Program.cs` are not localized.
 
 ### Telegram UI, concurrency, and privacy
 
@@ -128,6 +146,7 @@ Services -> IDbContextFactory<AlbumDb> -> SQLite
 | `BOT_TOKEN` | Required; startup fails if unset. |
 | `DB_PATH` | Optional; defaults to `/data/albums.db`. Parent directory is created. |
 | `ADMIN_IDS` | Optional comma-, semicolon-, or space-separated Telegram user IDs. |
+| `LOCALES_DIR` | Optional; defaults to `Locales` beside the executable. |
 
 Do not commit `.env`; Compose loads it and it may contain the bot token. The
 Compose service mounts the persistent `bot_data` volume at `/data`. The image
