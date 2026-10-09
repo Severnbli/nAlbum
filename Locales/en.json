@@ -43,6 +43,7 @@
     "AddOnlyMedia": "Only photos and videos can be added. Press Done when finished.",
     "ButtonDone": "✅ Done",
     "AddPrompt": "📥 Adding to <b>{0}</b>.\nSend or forward photos and videos – as many as you like. Nothing is saved until you press <b>Done</b>; duplicates are skipped automatically.\nMedia you edit or delete before then is tracked.",
+    "AddKeyboardHint": "To finish adding, press the <b>Done</b> button below or the <b>Done</b> button on your keyboard.",
     "AddSaved": "✅ Saved: {0}",
     "AddDuplicatesSkipped": ", {0} duplicates skipped",
     "AddDeletedFromChat": ", {0} deleted from the chat",

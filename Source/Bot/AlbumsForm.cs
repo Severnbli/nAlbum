@@ -70,6 +70,7 @@ public class AlbumsForm : FormBase
             return;
         }
 
+        await _add.OnIncomingMessage(message.UpdateData.Message);
         var text = message.MessageText?.Trim();
         if (string.IsNullOrEmpty(text)) return;                      // media is handled in SentData
 
@@ -107,4 +108,3 @@ public class AlbumsForm : FormBase
         }
     }
 }
-

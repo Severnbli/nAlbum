@@ -44,6 +44,7 @@ public static class LocKey
     public const string AddOnlyMedia = nameof(AddOnlyMedia);
     public const string ButtonDone = nameof(ButtonDone);
     public const string AddPrompt = nameof(AddPrompt);
+    public const string AddKeyboardHint = nameof(AddKeyboardHint);
     public const string AddSaved = nameof(AddSaved);
     public const string AddDuplicatesSkipped = nameof(AddDuplicatesSkipped);
     public const string AddDeletedFromChat = nameof(AddDeletedFromChat);
