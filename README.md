@@ -72,7 +72,7 @@ Each language is one JSON file in `Locales/`; no code changes are needed.
 
 1. Copy `Locales/en.json` to `Locales/<code>.json`, where `<code>` is the Telegram language code in lowercase (for example `de`, `pl`, `pt-br`).
 2. Set `name` (shown in the language menu) and optionally `flag`.
-3. Translate the values in `translations`. Keep the keys unchanged, keep placeholders such as `{0}` and HTML tags such as `<b>`, and leave a value empty or remove the entry to fall back to English.
+3. Translate the values in `translations`. Keep the keys (PascalCase names such as `MenuNewAlbum`) unchanged, keep placeholders such as `{0}` and HTML tags such as `<b>`, and leave a value empty or remove the entry to fall back to English. Startup logs list keys that are not translated yet.
 4. Restart the bot. The language appears in `/language` and is detected automatically for users whose Telegram language matches.
 
 Files are copied to the build output, so rebuild after adding one. To add languages without rebuilding, point `LOCALES_DIR` at a mounted directory (for Docker, add a volume and set `LOCALES_DIR` in `docker-compose.yml`). Invalid files are skipped with a message in the log.

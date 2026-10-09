@@ -15,7 +15,7 @@ or host media. The bot runs as one process and has no web server or job queue.
 ```text
 Program.cs                         composition root, database startup, bot startup
 Source/Config/AppConfig.cs         BOT_TOKEN, DB_PATH, ADMIN_IDS, LOCALES_DIR
-Source/Localization/               LocalizationService: loads Locales/*.json, T/F lookups
+Source/Localization/               LocalizationService (loads Locales/*.json, T/F), LocKey (keys)
 Locales/                           one JSON file per language (en, ru, be)
 Source/Data/Entities.cs            EF entities and domain data
 Source/Data/AlbumDb.cs             EF model, keys, indexes, relationships
@@ -110,9 +110,12 @@ Services -> IDbContextFactory<AlbumDb> -> SQLite
 
 ### Localization
 
-- All user-visible bot text goes through `Ctx.T(text)` / `Ctx.F(format, args)`.
-  The English text is the lookup key and the fallback; never concatenate
-  translatable sentences, use `{0}` placeholders instead.
+- All user-visible bot text goes through `Ctx.T(LocKey.X)` / `Ctx.F(LocKey.X, args)`.
+  Never put literal text in these calls. Keys are PascalCase constants in
+  `Source/Localization/LocKey.cs` (value equals the name); the text lives only
+  in `Locales/*.json`. Adding text = add the constant, add it to `en.json`
+  (the fallback language), then translate. Never concatenate translatable
+  sentences, use `{0}` placeholders instead.
 - Languages are `Locales/<code>.json` files (`name`, optional `flag`,
   `translations`), loaded once at startup by `LocalizationService`; the
   language menu is built from the loaded files, so adding a language must not
