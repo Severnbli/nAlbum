@@ -3,7 +3,7 @@ using nAlbum.Data;
 
 namespace nAlbum.Bot;
 
-public enum Mode { Idle, NewTitle, Rename, Adding, Removing, RemovePrompt }
+public enum Mode { Idle, NewTitle, Rename, Adding, Removing, RemovePrompt, GoToNumber }
 
 public sealed class UserSession
 {
@@ -49,6 +49,8 @@ public sealed class ViewState
     public string LastPageKey;               // new (Part 4): "<album>:<seed>:<offset>"
     public long DeleteSeed;                  // was _removeSeed   (0 = ordered view)
     public int DeleteOffset;                 // was _removeOffset
+    public int GoToOffset;                   // page to return to when "Go to number" is cancelled
+    public int GoToFlags;                    // numbers flags to keep after jumping
 }
 
 public sealed class RemovalState

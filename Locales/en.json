@@ -8,6 +8,10 @@
     "MenuSharedWithMe": "📥 Shared with me",
     "MenuDetailedStatistics": "📊 Detailed statistics",
     "MenuLanguage": "🌐 Language",
+    "ButtonGoToNumber": "🔎 Go to number",
+    "ViewGoToPrompt": "🔎 Send the number to open the view from, e.g. <code>42</code>.",
+    "ViewGoToInvalid": "⚠️ Send a single number, e.g. 42.",
+    "ViewGoToNearest": "ℹ️ #{0} was not found – showing the nearest items.",
     "MenuGlobalStatistics": "🌍 Global statistics",
     "GlobalStatsReport": "🌍 <b>Global statistics</b>\n\n👥 Total unique users: {0}\n➖➖➖\n📁 Albums: {1}\n🖼 Media: {2}\n➖➖➖\n👀 Views: {3}\n📄 Pages watched: {4}",
     "LanguageAutoDetect": "🌐 Auto-detect",
@@ -66,7 +70,7 @@
     "ButtonDeleteAlbum": "❌ Delete album",
     "ButtonMyAlbums": "⬅ My albums",
     "RemoveTitle": "🗑 Remove media – {0} ({1} items)",
-    "RemovePrompt": "Type the numbers of the items to delete, e.g. <code>5</code>, <code>1 2 3</code> or <code>1-3</code>.\nNumbers are permanent — deleting items never renumbers the others.\nYou will see a preview first and can cancel before anything is deleted.\nDon't know the numbers? Open the view with numbers.",
+    "RemovePrompt": "Type the numbers of the items to delete, e.g. <code>5</code>, <code>1 2 3</code> or <code>1-3</code>.\nNumbers are permanent – deleting items never renumbers the others.\nYou will see a preview first and can cancel before anything is deleted.\nDon't know the numbers? Open the view with numbers.",
     "ButtonViewWithNumbers": "👀 View with numbers",
     "ButtonBackCancel": "⬅ Cancel",
     "RemoveUnreadable": "⚠️ I couldn't read that. Examples: 5, 1 2 3, 1-3",
@@ -102,8 +106,8 @@
     "StatsNotAllowed": "Not allowed.",
     "ButtonRefresh": "🔄 Refresh",
     "StatsUnavailable": "⚠️ Statistics are temporarily unavailable.",
-    "StatsEmpty": "—",
+    "StatsEmpty": "–",
     "StatsReport": "📊 <b>Detailed statistics</b> (admin)\n\n👥 Total unique users: {0}\n➖➖➖\n📁 Albums: {1} (open {2})\n🖼 Media: {3} (photos {4} · videos {5})\n   avg per album {6:F1} · largest {7}\n➖➖➖\n🔑 Viewer grants: {8}\n🔗 Code joins: {9}\n❌ Wrong codes: {10}\n⏳ Throttled: {11}\n➖➖➖\n👀 Views: {12} (ordered {13} · random {14})\n📄 Pages watched: {15}\n➖➖➖\n➕ Created: albums {16} · media {17}\n🗑 Deleted: albums {18} · media {19}\n🔓 Albums opened for others: {20} times\n➖➖➖\n🏆 Most watched:\n{21}\n\n<i>Counters start at the upgrade date; earlier history is seeded only for created albums and added media.</i>",
-    "StatsTopRow": "{0}. {1} — {2} views · {3} pages"
+    "StatsTopRow": "{0}. {1} – {2} views · {3} pages"
   }
 }

@@ -15,12 +15,75 @@ public sealed class ViewScreen : Screen
 
     public ViewScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "view", "vp", "rnd", "rp" };
-    public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.Removing };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "view", "vp", "rnd", "rp", "goto" };
+    public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.Removing, Mode.GoToNumber };
 
-    public override Task OnText(MessageResult m, string text) => OnRemoveNumbers(m, text);
+    public override Task OnText(MessageResult m, string text) =>
+        Ctx.Session.Mode == Mode.GoToNumber ? OnGoToNumber(m, text) : OnRemoveNumbers(m, text);
 
-    public override Task OnCallback(MessageResult m, string[] p) => OnPageView(m, p);
+    public override Task OnCallback(MessageResult m, string[] p) =>
+        p[0] == "goto" ? OnGoToPrompt(m, p) : OnPageView(m, p);
+
+    /// <summary>goto:&lt;album&gt;:&lt;offset&gt;:&lt;flags&gt; asks for a number and reopens the ordered view from it.</summary>
+    private async Task OnGoToPrompt(MessageResult m, string[] p)
+    {
+        var album = await Ctx.Ui.ViewableAlbum(m, p);
+        if (album == null) return;
+        await m.ConfirmAction();
+
+        var offset = Math.Max(Text.Int(p, 2), 0);
+        var flags = Text.Int(p, 3) & (ShowNumbersFlag | KeepNumbersFlag);
+        var s = Ctx.Session;
+        s.Mode = Mode.GoToNumber;
+        s.AlbumId = album.Id;
+        s.View.GoToOffset = offset;
+        s.View.GoToFlags = flags;
+        await Ctx.Ui.EditNav(Ctx.T(LocKey.ViewGoToPrompt), GoToButtons(album, offset, flags));
+    }
+
+    private ButtonForm GoToButtons(Album album, int offset, int flags)
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), PageCb(album, 0, offset, flags));
+        return bf;
+    }
+
+    private async Task OnGoToNumber(MessageResult message, string text)
+    {
+        var s = Ctx.Session;
+        var album = await Ctx.Albums.GetAlbum(s.AlbumId);
+        if (album == null || !await Ctx.Albums.CanView(album, Ctx.UserId))
+        {
+            s.Mode = Mode.Idle;
+            return;
+        }
+
+        await Ctx.Ui.TryDelete(message.MessageId);
+
+        var raw = text.Trim().TrimStart('#');
+        if (!int.TryParse(raw, out var number) || number < 1)
+        {
+            await Ctx.Ui.EditNav(Ctx.T(LocKey.ViewGoToInvalid) + "\n\n" + Ctx.T(LocKey.ViewGoToPrompt),
+                GoToButtons(album, s.View.GoToOffset, s.View.GoToFlags));
+            return;
+        }
+
+        var total = await Ctx.Media.MediaCount(album.Id);
+        if (total == 0)
+        {
+            s.Mode = Mode.Idle;
+            return;
+        }
+
+        var found = await Ctx.Media.FindOffsetByNumber(album.Id, number);
+        var offset = found?.Offset ?? (total - 1) / ViewPage * ViewPage;
+        var note = found is { Exact: true } ? null : Ctx.F(LocKey.ViewGoToNearest, number);
+
+        s.Mode = Mode.Idle;
+        await Ctx.Stats.RecordPageAsync(album.Id, Ctx.UserId);
+        await RenderPage(album, 0, offset, s.View.GoToFlags, s.View.NavId, note);
+        s.View.LastPageKey = $"{album.Id}:0:{offset}";
+    }
 
     /// <summary>Callback that re-opens a page: seed 0 = ordered view (vp), seed > 0 = random view (rp).</summary>
     private static string PageCb(Album album, long seed, int offset, int flags) =>
@@ -72,9 +135,9 @@ public sealed class ViewScreen : Screen
             Ctx.Session.View.DeleteSeed = seed;      // 0 = ordered view
             Ctx.Session.View.DeleteOffset = offset;
         }
-        else if (Ctx.Session.Mode == Mode.Removing)
+        else if (Ctx.Session.Mode is Mode.Removing or Mode.GoToNumber)
         {
-            Ctx.Session.Mode = Mode.Idle;       // left delete mode (Done deleting / Reshuffle / Random / Back to a plain page)
+            Ctx.Session.Mode = Mode.Idle;       // left delete / go-to mode (Done deleting / Reshuffle / Random / Cancel / Back)
             Ctx.Session.View.DeleteSeed = 0;
         }
         // Mode.RemovePrompt is deliberately kept: the owner may browse with numbers and then type numbers for the preview.
@@ -156,6 +219,8 @@ public sealed class ViewScreen : Screen
                 buttons.Add(new ButtonBase(Ctx.T(LocKey.ButtonDeleteByNumber),
                     PageCb(album, seed, offset, flags | ShowNumbersFlag | DeleteModeFlag)));
             bf.AddButtonRow(buttons.ToArray());
+            if (seed == 0)
+                bf.AddButtonRow(Ctx.T(LocKey.ButtonGoToNumber), $"goto:{album.Id}:{offset}:{flags & (ShowNumbersFlag | KeepNumbersFlag)}");
         }
 
         bf.AddButtonRow(

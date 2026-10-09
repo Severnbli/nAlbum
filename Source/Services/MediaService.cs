@@ -61,6 +61,21 @@ public class MediaService
         return await db.Media.CountAsync(m => m.AlbumId == albumId);
     }
 
+    /// <summary>
+    /// Position (0-based) in the ordered view of the item with this number, or of the next existing one
+    /// when the number is gone. Exact is false in that case; null when the number is beyond the last item.
+    /// </summary>
+    public async Task<(int Offset, bool Exact)?> FindOffsetByNumber(long albumId, int number)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var item = await db.Media.AsNoTracking()
+            .Where(m => m.AlbumId == albumId && m.Number >= number)
+            .OrderBy(m => m.Number).FirstOrDefaultAsync();
+        if (item == null) return null;
+        var offset = await db.Media.CountAsync(m => m.AlbumId == albumId && m.Id < item.Id);
+        return (offset, item.Number == number);
+    }
+
     public async Task<List<MediaItem>> ListMedia(long albumId, int skip, int take)
     {
         await using var db = await _factory.CreateDbContextAsync();
