@@ -88,6 +88,7 @@ Services -> IDbContextFactory<AlbumDb> -> SQLite
 - Route additions through `MediaService.AddMedia`; its process-local semaphore
   protects allocation under concurrent media-group updates. Multiple bot
   processes sharing one database are unsupported.
+- Media sent in `Mode.Adding` is only pending (`AddState.Pending`, keyed by message id) until the user presses Done; nothing is written before that. `AlbumsForm.Edited` updates or drops pending items when their message is edited. Telegram sends bots no event for user deletions, so `AddMediaScreen.Commit` probes each pending message on Done by forwarding it to the chat and deleting the forward (400 = gone, skipped; other errors keep the item). Leaving the flow without Done discards pending items.
 - Album deletion removes its database rows, not Telegram-hosted media.
 
 ### Database and schema
