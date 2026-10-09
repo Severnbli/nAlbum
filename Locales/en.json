@@ -2,7 +2,7 @@
   "name": "English",
   "flag": "\uD83C\uDDFA\uD83C\uDDF8",
   "translations": {
-    "MenuWelcome": "👋 <b>Albums bot</b>\n\nCreate photo and video albums and share them with a secret code.\nGot a code from a friend? Just send it to me.",
+    "MenuWelcome": "👋 <b>Albums bot</b>\n\nCreate photo and video albums and share them with a secret code.\n\nGot a code from a friend? Just send it to me.",
     "MenuNewAlbum": "➕ New album",
     "MenuMyAlbums": "📁 My albums",
     "MenuSharedWithMe": "📥 Shared with me",
