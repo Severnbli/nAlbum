@@ -105,7 +105,7 @@ public sealed class ViewScreen : Screen
         await Ctx.View.ShowViewPage(
             clickedMessageId,
             items,
-            failed => text + (failed > 0 ? "\n" + Ctx.F(LocKey.ViewItemsFailed, failed) : ""),
+            failed => text + (failed > 0 ? "\n\n" + Ctx.F(LocKey.ViewItemsFailed, failed) : ""),
             nav,
             captions);
     }
@@ -119,8 +119,10 @@ public sealed class ViewScreen : Screen
         var text = seed == 0
             ? Ctx.F(LocKey.ViewPageOrdered, Text.H(album.Title), offset + 1, offset + count, total)
             : Ctx.F(LocKey.ViewPageRandom, Text.H(album.Title), offset + 1, offset + count, total);
-        if (numbers) text += Ctx.T(LocKey.ViewNumbersHint);
-        if (deleting) text += Ctx.T(LocKey.ViewDeleteHint);
+        var hints = new List<string>();
+        if (numbers) hints.Add(Ctx.T(LocKey.ViewNumbersHint).TrimStart('\n'));
+        if (deleting) hints.Add(Ctx.T(LocKey.ViewDeleteHint).TrimStart('\n'));
+        if (hints.Count > 0) text += "\n➖➖➖\n" + string.Join("\n\n", hints);
         if (note != null) text = note + "\n\n" + text;
 
         var bf = new ButtonForm();
