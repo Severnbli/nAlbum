@@ -1,4 +1,4 @@
-<img width="500" height="272" alt="nAlbum_full" src="https://github.com/user-attachments/assets/56fe8808-1c8b-429c-967e-7ad4681a7363" />
+<img width="400" height="275" alt="logo" src="https://github.com/user-attachments/assets/08d268eb-681c-443a-aa94-fc09eda3442c" />
 
 # nAlbum
 
