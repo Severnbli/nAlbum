@@ -21,6 +21,40 @@ public sealed class ViewScreen : Screen
     public override Task OnText(MessageResult m, string text) =>
         Ctx.Session.Mode == Mode.GoToNumber ? OnGoToNumber(m, text) : OnRemoveNumbers(m, text);
 
+    /// <summary>Media sent in delete mode: the matching items are deleted, like typed numbers.</summary>
+    public override async Task OnMedia(DataResult data)
+    {
+        var picked = await Ctx.Ui.CollectPickedMedia(data);
+        if (picked == null) return;
+        var (items, missing) = picked.Value;
+
+        var s = Ctx.Session;
+        var album = await Ctx.Albums.GetAlbum(s.AlbumId);
+        if (album == null || album.OwnerId != Ctx.UserId || s.Mode != Mode.Removing)
+        {
+            if (s.Mode == Mode.Removing) s.Mode = Mode.Idle;
+            return;
+        }
+
+        var note = items.Count == 0 ? Ctx.F(LocKey.MediaNotInAlbum, missing) : null;
+        if (items.Count > 0)
+        {
+            var removed = await Ctx.Media.DeleteMediaInAlbum(album.Id, items.Select(i => i.Id));
+            note = Ctx.F(LocKey.ViewDeleted, removed) + "."
+                   + (missing > 0 ? "\n" + Ctx.F(LocKey.MediaNotInAlbum, missing) : "");
+            await RenderPage(album, s.View.DeleteSeed, s.View.DeleteOffset, s.View.DeleteFlags, s.View.NavId, note);
+            if (s.View.NavId != 0)
+                s.View.LastPageKey = $"{album.Id}:{s.View.DeleteSeed}:{s.View.DeleteOffset}";
+            return;
+        }
+
+        var total = await Ctx.Media.MediaCount(album.Id);
+        var count = Math.Min(ViewPage, Math.Max(total - s.View.DeleteOffset, 0));
+        var (navText, navButtons) = PageNav(album, s.View.DeleteSeed, s.View.DeleteOffset, total, count,
+            s.View.DeleteFlags, note);
+        await Ctx.Ui.EditNav(navText, navButtons);
+    }
+
     public override Task OnCallback(MessageResult m, string[] p) =>
         p[0] == "goto" ? OnGoToPrompt(m, p) : OnPageView(m, p);
 
@@ -134,6 +168,7 @@ public sealed class ViewScreen : Screen
             Ctx.Session.AlbumId = album.Id;
             Ctx.Session.View.DeleteSeed = seed;      // 0 = ordered view
             Ctx.Session.View.DeleteOffset = offset;
+            Ctx.Session.View.DeleteFlags = flags;
         }
         else if (Ctx.Session.Mode is Mode.Removing or Mode.GoToNumber)
         {
@@ -268,14 +303,14 @@ public sealed class ViewScreen : Screen
 
         if (deleted)
         {
-            await RenderPage(album, s.View.DeleteSeed, s.View.DeleteOffset, 3, s.View.NavId, note); // refresh in place
+            await RenderPage(album, s.View.DeleteSeed, s.View.DeleteOffset, s.View.DeleteFlags, s.View.NavId, note); // refresh in place
             if (s.View.NavId != 0)
                 s.View.LastPageKey = $"{album.Id}:{s.View.DeleteSeed}:{s.View.DeleteOffset}";
             return;
         }
 
         var count = Math.Min(ViewPage, Math.Max(total - s.View.DeleteOffset, 0));
-        var (navText, navButtons) = PageNav(album, s.View.DeleteSeed, s.View.DeleteOffset, total, count, 3, note);
+        var (navText, navButtons) = PageNav(album, s.View.DeleteSeed, s.View.DeleteOffset, total, count, s.View.DeleteFlags, note);
         await Ctx.Ui.EditNav(navText, navButtons);
     }
 }

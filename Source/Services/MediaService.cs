@@ -55,6 +55,13 @@ public class MediaService
         }
     }
 
+    public async Task<MediaItem> FindByUniqueId(long albumId, string fileUniqueId)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Media.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.AlbumId == albumId && m.FileUniqueId == fileUniqueId);
+    }
+
     public async Task<int> MediaCount(long albumId)
     {
         await using var db = await _factory.CreateDbContextAsync();

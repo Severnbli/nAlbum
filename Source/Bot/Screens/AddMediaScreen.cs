@@ -206,7 +206,7 @@ public sealed class AddMediaScreen : Screen
         else pending.TryRemove(msg.MessageId, out _);
     }
 
-    private static bool TryExtract(Message msg, out PendingMedia media)
+    public static bool TryExtract(Message msg, out PendingMedia media)
     {
         var inGroup = msg.MediaGroupId != null;
         media = null;

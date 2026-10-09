@@ -1,3 +1,4 @@
+using nAlbum.Bot.Screens;
 using nAlbum.Data;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -87,6 +88,19 @@ public sealed class BotUi
         {
             await Console.Error.WriteLineAsync($"Could not edit navigation message: {ex.Message}");
         }
+    }
+
+    public async Task<(List<MediaItem> Items, int Missing)?> CollectPickedMedia(DataResult data)
+    {
+        var msg = data.Message;
+        if (!AddMediaScreen.TryExtract(msg, out var media)) return null;
+
+        await TryDelete(msg.MessageId); // keep the chat tidy
+        var item = await Ctx.Media.FindByUniqueId(Ctx.Session.AlbumId, media.UniqueId);
+        var pick = Ctx.Session.Removal.Pick;
+        var ticket = await pick.Add(item);
+        await Task.Delay(TimeSpan.FromMilliseconds(800));
+        return await pick.Take(ticket);
     }
 
     public ButtonForm MenuButtons()

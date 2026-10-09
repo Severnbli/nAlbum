@@ -9,6 +9,7 @@ public static class LocKey
     public const string MenuSharedWithMe = nameof(MenuSharedWithMe);
     public const string MenuDetailedStatistics = nameof(MenuDetailedStatistics);
     public const string MenuLanguage = nameof(MenuLanguage);
+    public const string MediaNotInAlbum = nameof(MediaNotInAlbum);
     public const string ButtonGoToNumber = nameof(ButtonGoToNumber);
     public const string ViewGoToPrompt = nameof(ViewGoToPrompt);
     public const string ViewGoToInvalid = nameof(ViewGoToInvalid);
