@@ -51,6 +51,7 @@ public sealed class RemoveScreen : Screen
         var total = await Ctx.Media.MediaCount(album.Id);
         var text = $"🗑 <b>Remove media</b> – {Text.H(album.Title)} ({total} items)\n\n" +
                    "Type the numbers of the items to delete, e.g. <code>5</code>, <code>1 2 3</code> or <code>1-3</code>.\n" +
+                   "Numbers are permanent — deleting items never renumbers the others.\n" +
                    "You will see a preview first and can cancel before anything is deleted.\n" +
                    "Don't know the numbers? Open the view with numbers.";
         if (note != null) text = note + "\n\n" + text;
@@ -91,14 +92,14 @@ public sealed class RemoveScreen : Screen
 
         await Ctx.Ui.TryDelete(message.MessageId); // keep the chat tidy
 
-        var positions = NumberParser.Parse(text);
-        if (positions == null || positions.Count == 0)
+        var numbers = NumberParser.Parse(text);
+        if (numbers == null || numbers.Count == 0)
         {
             await RefreshRemoveScreen(album, "⚠️ I couldn't read that. Examples: 5, 1 2 3, 1-3");
             return;
         }
 
-        var resolved = await Ctx.Media.ResolvePositions(album.Id, positions);
+        var resolved = await Ctx.Media.ResolveNumbers(album.Id, numbers);
         if (resolved.Count == 0)
         {
             await RefreshRemoveScreen(album, "⚠️ No items with those numbers.");
@@ -111,8 +112,8 @@ public sealed class RemoveScreen : Screen
         r.Pending.AddRange(resolved);
         r.AlbumId = album.Id;
 
-        var skipped = positions.Count - resolved.Count;
-        var note = skipped > 0 ? $"ℹ️ {skipped} number(s) are out of range and were ignored." : null;
+        var skipped = numbers.Count - resolved.Count;
+        var note = skipped > 0 ? $"ℹ️ {skipped} number(s) were not found and ignored." : null;
         await RenderRemovePreview(album, 0, Ctx.Session.View.NavId != 0 ? Ctx.Session.View.NavId : r.PromptMsgId, note);
     }
 

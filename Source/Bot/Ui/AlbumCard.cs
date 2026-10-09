@@ -12,10 +12,14 @@ public sealed class AlbumCard
     public async Task<(string Text, ButtonForm Buttons)> Build(Album album)
     {
         var count = await Ctx.Media.MediaCount(album.Id);
+        var watch = await Ctx.Stats.GetAlbumWatchAsync(album.Id);
         var isOwner = album.OwnerId == Ctx.UserId;
 
         var sb = new StringBuilder();
-        sb.Append($"📁 <b>{Text.H(album.Title)}</b>\n🖼 Media: {count}");
+        sb.Append($"📁 <b>{Text.H(album.Title)}</b>");
+        if (watch != null) sb.Append($"\n👀 Views: {Text.N(watch.Views)} · 📄 Pages: {Text.N(watch.Pages)}");
+        sb.Append($"\n🖼 Media: {count}");
+        if (isOwner && album.NextNumber > 1) sb.Append($" · last number #{album.NextNumber - 1}");
 
         var bf = new ButtonForm();
         if (!isOwner)

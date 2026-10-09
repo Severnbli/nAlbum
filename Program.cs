@@ -17,6 +17,7 @@ var services = new ServiceCollection()
     .AddSingleton(config)
     .AddDbContextFactory<AlbumDb>(o => o.UseSqlite($"Data Source={config.DbPath}"))
     .AddSingleton<AlbumService>()
+    .AddSingleton<StatsService>()
     .AddSingleton<MediaService>()
     .AddSingleton<CodeThrottle>()
     .BuildServiceProvider();

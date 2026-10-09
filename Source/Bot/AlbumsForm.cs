@@ -15,20 +15,22 @@ public class AlbumsForm : FormBase
     private readonly MenuScreen _menu;
     private readonly JoinScreen _join;
     private readonly AddMediaScreen _add;
+    private readonly StatsScreen _stats;
     private readonly Dictionary<string, Screen> _byCallback = new();
     private readonly Dictionary<Mode, Screen> _byMode = new();
     private readonly Dictionary<string, Screen> _byCommand = new();
 
-    public AlbumsForm(AppConfig config, AlbumService albums, MediaService media, CodeThrottle throttle)
+    public AlbumsForm(AppConfig config, AlbumService albums, MediaService media, CodeThrottle throttle, StatsService stats)
     {
-        _ctx = new BotContext(this, config, albums, media, throttle);
+        _ctx = new BotContext(this, config, albums, media, throttle, stats);
         _menu = new MenuScreen(_ctx);
         _join = new JoinScreen(_ctx);
         _add = new AddMediaScreen(_ctx);
+        _stats = new StatsScreen(_ctx);
 
         var screens = new Screen[]
         {
-            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx)
+            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats
         };
         foreach (var s in screens)
         {
@@ -40,6 +42,11 @@ public class AlbumsForm : FormBase
 
     public override Task Render(MessageResult message) => Task.CompletedTask;
 
+    public override async Task PreLoad(MessageResult message)
+    {
+        if (_ctx.IsPrivate) await _ctx.Stats.TouchUserAsync(_ctx.UserId);
+    }
+
     public override async Task Load(MessageResult message)
     {
         if (message.IsAction || !_ctx.IsPrivate) return;
@@ -50,6 +57,7 @@ public class AlbumsForm : FormBase
             _ctx.Session.Mode = Mode.Idle;                           // any command aborts the current flow (as before)
             var args = message.BotCommandParameters;
             if (message.BotCommand == "/start" && args.Count > 0) await _join.TryJoin(args[0]);   // deep link
+            else if (message.BotCommand == "/stats" && _ctx.Config.IsAdmin(_ctx.UserId)) await _stats.ShowGlobal(message);
             else if (_byCommand.TryGetValue(message.BotCommand, out var s)) await s.OnCommand(message, message.BotCommand, args);
             else await _menu.ShowWelcome();                          // /start, /menu and anything unknown
             return;

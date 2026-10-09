@@ -170,6 +170,7 @@ public sealed class MediaView
         v.Ids.Clear();
         v.NavId = 0;
         v.Editable = false;
+        v.LastPageKey = null;
         if (all.Count == 0) return;
 
         try

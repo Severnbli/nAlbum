@@ -7,11 +7,13 @@ namespace nAlbum.Services;
 public class MediaService
 {
     private readonly IDbContextFactory<AlbumDb> _factory;
+    private readonly StatsService _stats;
     private readonly SemaphoreSlim _addLock = new(1, 1);
 
-    public MediaService(IDbContextFactory<AlbumDb> factory)
+    public MediaService(IDbContextFactory<AlbumDb> factory, StatsService stats)
     {
         _factory = factory;
+        _stats = stats;
     }
 
     /// <summary>
@@ -40,6 +42,7 @@ public class MediaService
 
             await db.SaveChangesAsync();
             await tx.CommitAsync();
+            await _stats.IncrementAsync(StatKeys.MediaAdded);
             return true;
         }
         catch (DbUpdateException)
@@ -77,53 +80,17 @@ public class MediaService
             .Skip(skip).Take(take).ToListAsync();
     }
 
-    /// <summary>Resolves 1-based album positions (ordered by id) to media ids. Call BEFORE deleting.</summary>
-    public async Task<List<long>> GetMediaIdsAtPositions(long albumId, IEnumerable<int> positions)
+    /// <summary>Resolves permanent numbers to items of this album. Deleted or unused numbers are absent.</summary>
+    public async Task<List<(int Number, MediaItem Item)>> ResolveNumbers(long albumId, IEnumerable<int> numbers)
     {
-        await using var db = _factory.CreateDbContext();
-        var ids = new List<long>();
-        foreach (var pos in positions)
-        {
-            var id = await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId)
-                .OrderBy(m => m.Id).Skip(pos - 1).Take(1)
-                .Select(m => m.Id).FirstOrDefaultAsync();
-            if (id != 0) ids.Add(id);
-        }
-
-        return ids;
-    }
-
-    /// <summary>1-based position of each media item in its album (ordered by Id): the "real" numbers shown as #n.</summary>
-    public async Task<Dictionary<long, int>> GetPositions(long albumId, IEnumerable<long> mediaIds)
-    {
-        await using var db = await _factory.CreateDbContextAsync();
-        var result = new Dictionary<long, int>();
-        foreach (var id in mediaIds)
-        {
-            result[id] = await db.Media.CountAsync(m => m.AlbumId == albumId && m.Id <= id);
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Resolves 1-based album positions (album order = ascending Id) to (position, item). Positions beyond the album size are dropped.
-    /// </summary>
-    public async Task<List<(int Position, MediaItem Item)>> ResolvePositions(long albumId, IEnumerable<int> positions)
-    {
-        var wanted = positions.Where(p => p >= 1).Distinct().OrderBy(p => p).ToList();
+        var wanted = numbers.Where(n => n >= 1).Distinct().ToList();
         if (wanted.Count == 0) return new List<(int, MediaItem)>();
 
         await using var db = await _factory.CreateDbContextAsync();
-        var ids = await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId)
-            .OrderBy(m => m.Id).Take(wanted[^1]).Select(m => m.Id).ToListAsync(); // ids[k-1] = item at position k
-
-        var picked = wanted.Where(p => p <= ids.Count).Select(p => (Position: p, Id: ids[p - 1])).ToList();
-        var idList = picked.Select(x => x.Id).ToList();
-        var byId = (await db.Media.AsNoTracking().Where(m => m.AlbumId == albumId && idList.Contains(m.Id)).ToListAsync())
-            .ToDictionary(m => m.Id);
-
-        return picked.Where(x => byId.ContainsKey(x.Id)).Select(x => (x.Position, byId[x.Id])).ToList();
+        var items = await db.Media.AsNoTracking()
+            .Where(m => m.AlbumId == albumId && wanted.Contains(m.Number))
+            .OrderBy(m => m.Number).ToListAsync();
+        return items.Select(m => (m.Number, m)).ToList();
     }
 
     /// <summary>Deletes the given items, but only if they belong to the album. Returns how many rows were deleted.</summary>
@@ -131,13 +98,8 @@ public class MediaService
     {
         var list = mediaIds.ToList();
         await using var db = await _factory.CreateDbContextAsync();
-        return await db.Media.Where(m => m.AlbumId == albumId && list.Contains(m.Id)).ExecuteDeleteAsync();
-    }
-
-    public async Task DeleteMedia(IEnumerable<long> mediaIds)
-    {
-        var list = mediaIds.ToList();
-        await using var db = _factory.CreateDbContext();
-        await db.Media.Where(m => list.Contains(m.Id)).ExecuteDeleteAsync();
+        var deleted = await db.Media.Where(m => m.AlbumId == albumId && list.Contains(m.Id)).ExecuteDeleteAsync();
+        await _stats.IncrementAsync(StatKeys.MediaDeleted, deleted);
+        return deleted;
     }
 }

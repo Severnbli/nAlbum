@@ -20,6 +20,7 @@ public class AlbumDb : DbContext
         b.Entity<Album>(e =>
         {
             e.Property(x => x.Title).IsRequired().HasMaxLength(100);
+            e.Property(x => x.NextNumber).HasDefaultValue(1);
             e.HasIndex(x => new { x.OwnerId, x.Id });
             e.HasIndex(x => x.AccessCode).IsUnique(); // SQLite allows many NULLs in a unique index
         });
@@ -29,6 +30,7 @@ public class AlbumDb : DbContext
             e.Property(x => x.Kind).HasConversion<int>();
             e.Property(x => x.FileId).IsRequired();
             e.Property(x => x.FileUniqueId).IsRequired();
+            e.Property(x => x.Number).HasDefaultValue(0);
             e.HasOne<Album>().WithMany().HasForeignKey(x => x.AlbumId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.AlbumId, x.FileUniqueId }).IsUnique(); // no duplicates inside an album
             e.HasIndex(x => new { x.AlbumId, x.Id });
@@ -44,11 +46,18 @@ public class AlbumDb : DbContext
         b.Entity<AlbumViewStat>(e =>
         {
             e.HasKey(x => new { x.AlbumId, x.UserId });
+            e.Property(x => x.Views).HasDefaultValue(0);
+            e.Property(x => x.RandomViews).HasDefaultValue(0);
+            e.Property(x => x.Pages).HasDefaultValue(0);
             e.HasOne<Album>().WithMany().HasForeignKey(x => x.AlbumId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.UserId);
         });
 
-        b.Entity<Counter>(e => e.HasKey(x => x.Name));
+        b.Entity<Counter>(e =>
+        {
+            e.HasKey(x => x.Name);
+            e.Property(x => x.Value).HasDefaultValue(0);
+        });
 
         b.Entity<AlbumAccess>(e =>
         {

@@ -42,6 +42,7 @@ public sealed class JoinScreen : Screen
     {
         if (Ctx.Throttle.IsThrottled(Ctx.UserId))
         {
+            await Ctx.Stats.IncrementAsync(StatKeys.CodeThrottled);
             await Ctx.Ui.Say("⏳ Too many wrong codes. Please try again in a few minutes.");
             return;
         }
@@ -51,10 +52,12 @@ public sealed class JoinScreen : Screen
         if (album == null)
         {
             Ctx.Throttle.RegisterFailedAttempt(Ctx.UserId);
+            await Ctx.Stats.IncrementAsync(StatKeys.CodeFailures);
             await Ctx.Ui.Say("❌ Wrong code, or the album is closed.");
             return;
         }
 
+        await Ctx.Stats.IncrementAsync(StatKeys.CodeJoins);
         var (card, bf) = await Ctx.Cards.Build(album);
         await Ctx.Ui.Say("✅ Access granted.\n\n" + card, bf);
     }

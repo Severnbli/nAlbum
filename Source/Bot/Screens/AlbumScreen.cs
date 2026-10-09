@@ -1,4 +1,5 @@
 using nAlbum.Bot.Ui;
+using nAlbum.Services;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
 
@@ -29,6 +30,7 @@ public sealed class AlbumScreen : Screen
 
                 Ctx.Session.Mode = Mode.Idle;
                 var album = await Ctx.Albums.CreateAlbum(Ctx.UserId, title);
+                await Ctx.Stats.IncrementAsync(StatKeys.AlbumsCreated);
                 var (card, bf) = await Ctx.Cards.Build(album);
                 await Ctx.Ui.Say("✅ Album created.\n\n" + card, bf);
                 return;
@@ -107,7 +109,9 @@ public sealed class AlbumScreen : Screen
                 var album = await Ctx.Ui.OwnedAlbum(m, p);
                 if (album == null) return;
                 await m.ConfirmAction("Album deleted.");
-                await Ctx.Albums.DeleteAlbum(album.Id);
+                var media = await Ctx.Albums.DeleteAlbum(album.Id);
+                await Ctx.Stats.IncrementAsync(StatKeys.AlbumsDeleted);
+                await Ctx.Stats.IncrementAsync(StatKeys.MediaDeleted, media);
                 await Ctx.Ui.ShowList(m, "mine", 0);
                 break;
             }
@@ -129,11 +133,13 @@ public sealed class AlbumScreen : Screen
         if (album.IsOpen)
         {
             await Ctx.Albums.CloseAlbum(album.Id);
+            await Ctx.Stats.IncrementAsync(StatKeys.AlbumsClosed);
             await m.ConfirmAction("Album closed. Everyone else lost access.", true);
         }
         else
         {
             code = await Ctx.Albums.OpenAlbum(album.Id);
+            await Ctx.Stats.IncrementAsync(StatKeys.AlbumsOpened);
             await m.ConfirmAction("Album opened.");
         }
 

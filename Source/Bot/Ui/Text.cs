@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 
 namespace nAlbum.Bot.Ui;
 
@@ -14,6 +15,8 @@ public static class Text
     public static int Int(string[] p, int i) => p.Length > i && int.TryParse(p[i], out var v) ? v : 0;
 
     public static long Long(string[] p, int i) => p.Length > i && long.TryParse(p[i], out var v) ? v : 0;
+
+    public static string N(long v) => v.ToString("N0", CultureInfo.InvariantCulture);
 }
 
 public static class NumberParser

@@ -81,6 +81,7 @@ public sealed class BotUi
         bf.AddButtonRow("➕ New album", "new");
         bf.AddButtonRow("📁 My albums", "mine:0");
         bf.AddButtonRow("📥 Shared with me", "shared:0");
+        if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow("📊 Detailed statistics", "stats");
         return bf;
     }
 

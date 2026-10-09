@@ -11,10 +11,10 @@ public sealed class BotContext
     private readonly FormBase _form;
 
     public BotContext(FormBase form, AppConfig config, AlbumService albums, MediaService media,
-                      CodeThrottle throttle)
+                      CodeThrottle throttle, StatsService stats)
     {
         _form = form;
-        Config = config; Albums = albums; Media = media; Throttle = throttle;
+        Config = config; Albums = albums; Media = media; Throttle = throttle; Stats = stats;
         Session = new UserSession();
         Ui = new BotUi(this);
         View = new MediaView(this);
@@ -29,6 +29,7 @@ public sealed class BotContext
     public AlbumService Albums { get; }
     public MediaService Media { get; }
     public CodeThrottle Throttle { get; }
+    public StatsService Stats { get; }
     public UserSession Session { get; }
     public BotUi Ui { get; }
     public MediaView View { get; }

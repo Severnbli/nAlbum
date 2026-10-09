@@ -15,7 +15,15 @@ public sealed class MenuScreen : Screen
     public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "mine", "shared" };
     public override IReadOnlyCollection<string> Commands => new[] { "/cancel", "/menu", "/albums" };
 
-    public async Task ShowWelcome() => await Ctx.Ui.Say(Welcome, Ctx.Ui.MenuButtons());
+    public async Task<string> WelcomeTextAsync()
+    {
+        var s = await Ctx.Stats.GetPublicStatsAsync();
+        return s == null
+            ? Welcome
+            : $"{Welcome}\n\n📊 Albums: {Text.N(s.Albums)} · 👀 Views: {Text.N(s.Views)} · 📄 Pages watched: {Text.N(s.Pages)}";
+    }
+
+    public async Task ShowWelcome() => await Ctx.Ui.Say(await WelcomeTextAsync(), Ctx.Ui.MenuButtons());
 
     public override async Task OnCommand(MessageResult m, string command, IReadOnlyList<string> args)
     {
@@ -41,7 +49,7 @@ public sealed class MenuScreen : Screen
             case "menu":
                 Ctx.Session.Mode = Mode.Idle;
                 await m.ConfirmAction();
-                await Ctx.Ui.Show(m, Welcome, Ctx.Ui.MenuButtons());
+                await Ctx.Ui.Show(m, await WelcomeTextAsync(), Ctx.Ui.MenuButtons());
                 break;
 
             case "mine":

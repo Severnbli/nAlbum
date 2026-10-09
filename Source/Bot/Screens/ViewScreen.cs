@@ -42,13 +42,21 @@ public sealed class ViewScreen : Screen
         if ((flags & 2) != 0 && album.OwnerId != Ctx.UserId) flags &= 1; // only the owner can delete
         if ((flags & 2) != 0) flags |= 1;                            // delete mode always shows numbers
 
-        if (await Ctx.Media.MediaCount(album.Id) == 0)
+        var total = await Ctx.Media.MediaCount(album.Id);
+        if (total == 0)
         {
             await m.ConfirmAction("This album is empty.", true);
             return;
         }
+        if (offset >= total) offset = (total - 1) / ViewPage * ViewPage;
 
         await m.ConfirmAction();
+
+        var key = $"{album.Id}:{seed}:{offset}";
+        var isEntry = p[0] is "view" or "rnd";
+        if (isEntry) await Ctx.Stats.RecordViewAsync(album.Id, Ctx.UserId, random);
+        if (isEntry || key != Ctx.Session.View.LastPageKey)
+            await Ctx.Stats.RecordPageAsync(album.Id, Ctx.UserId);
 
         if ((flags & 2) != 0)
         {
@@ -65,6 +73,7 @@ public sealed class ViewScreen : Screen
         // Mode.RemovePrompt is deliberately kept: the owner may browse with numbers and then type numbers for the preview.
 
         await RenderPage(album, seed, offset, flags, m.MessageId, null);
+        Ctx.Session.View.LastPageKey = key;
     }
 
     private async Task RenderPage(Album album, long seed, int offset, int flags, int clickedMessageId, string note)
@@ -89,10 +98,7 @@ public sealed class ViewScreen : Screen
 
         List<string> captions = null;
         if ((flags & 1) != 0)
-        {
-            var pos = await Ctx.Media.GetPositions(album.Id, items.Select(i => i.Id));
-            captions = MediaView.NumberCaptions(items.Select(i => pos[i.Id]).ToList());
-        }
+            captions = MediaView.NumberCaptions(items.Select(i => i.Number).ToList());
 
         var (text, nav) = PageNav(album, seed, offset, total, items.Count, flags, note);
         await Ctx.View.ShowViewPage(
@@ -112,7 +118,7 @@ public sealed class ViewScreen : Screen
         var text = seed == 0
             ? $"<b>{Text.H(album.Title)}</b>: items {offset + 1}–{offset + count} of {total}"
             : $"🎲 <b>{Text.H(album.Title)}</b>: random {offset + 1}–{offset + count} of {total}";
-        if (numbers) text += "\nThe numbers under the pictures are listed in the same order as the pictures (left to right, top to bottom).";
+        if (numbers) text += "\nThe numbers under the pictures are listed in the same order as the pictures (left to right, top to bottom). Numbers never change.";
         if (deleting) text += "\n🗑 Type the number(s) to delete, e.g. <code>12</code>, <code>12 15 18</code> or <code>12-15</code>.";
         if (note != null) text = note + "\n\n" + text;
 
@@ -157,28 +163,27 @@ public sealed class ViewScreen : Screen
 
         await Ctx.Ui.TryDelete(message.MessageId); // keep the chat tidy: remove the typed message
 
-        var positions = NumberParser.Parse(text);
+        var numbers = NumberParser.Parse(text);
         var total = await Ctx.Media.MediaCount(album.Id);
         string note;
         var deleted = false;
 
-        if (positions == null || positions.Count == 0)
+        if (numbers == null || numbers.Count == 0)
         {
             note = "⚠️ I couldn't read that.";
         }
         else
         {
-            var valid = positions.Where(n => n >= 1 && n <= total).ToList();
-            var ids = await Ctx.Media.GetMediaIdsAtPositions(album.Id, valid); // resolve before deleting
-            if (ids.Count == 0)
+            var found = await Ctx.Media.ResolveNumbers(album.Id, numbers);
+            if (found.Count == 0)
             {
-                note = "⚠️ No items with those numbers.";
+                note = "⚠️ No items with those numbers (already deleted or never existed).";
             }
             else
             {
-                await Ctx.Media.DeleteMedia(ids);
-                note = $"✅ Deleted {ids.Count} item(s)" +
-                       (valid.Count < positions.Count ? " (some numbers were out of range)." : ".");
+                var removed = await Ctx.Media.DeleteMediaInAlbum(album.Id, found.Select(x => x.Item.Id));
+                note = $"✅ Deleted {removed} item(s)" +
+                       (found.Count < numbers.Count ? $" ({numbers.Count - found.Count} number(s) not found)." : ".");
                 deleted = true;
             }
         }
@@ -186,6 +191,8 @@ public sealed class ViewScreen : Screen
         if (deleted)
         {
             await RenderPage(album, s.View.DeleteSeed, s.View.DeleteOffset, 3, s.View.NavId, note); // refresh in place
+            if (s.View.NavId != 0)
+                s.View.LastPageKey = $"{album.Id}:{s.View.DeleteSeed}:{s.View.DeleteOffset}";
             return;
         }
 
