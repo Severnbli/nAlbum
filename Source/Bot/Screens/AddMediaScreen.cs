@@ -117,7 +117,7 @@ public sealed class AddMediaScreen : Screen
         var add = Ctx.Session.Add;
         foreach (var (messageId, media) in add.Pending.OrderBy(kv => kv.Key))
         {
-            if (!await StillInChat(messageId, media.InGroup))
+            if (!await StillInChat(messageId))
             {
                 add.Removed++;
                 continue;
@@ -129,33 +129,27 @@ public sealed class AddMediaScreen : Screen
         add.Pending.Clear();
     }
 
-    private async Task<bool> StillInChat(int messageId, bool inGroup)
+    private async Task<bool> StillInChat(int messageId)
     {
+        // Reactions can succeed on deleted messages, so probe by copying the message and removing the copy.
+        MessageId copy;
         try
         {
-            if (inGroup)
-            {
-                // reactions on group items hit the first message, so probe by copying and removing the copy
-                var copy = await Ctx.Device.Api(a => a.CopyMessage(Ctx.Device.DeviceId, Ctx.Device.DeviceId, messageId));
-                await Ctx.Device.Api(a => a.DeleteMessage(Ctx.Device.DeviceId, copy.Id));
-            }
-            else
-            {
-                await Ctx.Device.Api(a => a.SetMessageReaction(
-                    Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = "👍" }]));
-            }
-            return true;
+            copy = await Ctx.Device.Api(a => a.CopyMessage(
+                Ctx.Device.DeviceId, Ctx.Device.DeviceId, messageId, disableNotification: true));
         }
-        catch (ApiRequestException ex) when (ex.ErrorCode == 400
-            && (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
-                || ex.Message.Contains("MESSAGE_ID_INVALID", StringComparison.OrdinalIgnoreCase)))
+        catch (ApiRequestException ex) when (ex.ErrorCode == 400)
         {
-            return false;
+            return false;   // the original message no longer exists
         }
         catch (ApiRequestException)
         {
             return true;   // cannot tell; keep the media rather than lose it
         }
+
+        try { await Ctx.Device.Api(a => a.DeleteMessage(Ctx.Device.DeviceId, copy.Id)); }
+        catch (ApiRequestException) { }
+        return true;
     }
 
     private bool FirstOfGroup(Message msg)
