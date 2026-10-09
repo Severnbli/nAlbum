@@ -18,11 +18,23 @@ public sealed class AddState
 {
     public int Added;                 // was _added
     public int Skipped;               // was _skipped
-    public string LastGroupId;        // was _lastGroupId
+    public HashSet<string> SeenMediaGroups { get; } = new();
     public int Removed;               // media deleted from the chat before Done
+    public int PromptMessageId;
+    public int KeyboardMessageId;
+    public string PromptText;
+    public SemaphoreSlim Gate { get; } = new(1, 1);
     public ConcurrentDictionary<int, PendingMedia> Pending { get; } = new();   // message id -> media waiting for Done
+    public ConcurrentDictionary<int, byte> UnsupportedHandled { get; } = new();
 
-    public void Reset() { Added = Skipped = Removed = 0; LastGroupId = null; Pending.Clear(); }
+    public void Reset()
+    {
+        Added = Skipped = Removed = PromptMessageId = KeyboardMessageId = 0;
+        PromptText = null;
+        SeenMediaGroups.Clear();
+        Pending.Clear();
+        UnsupportedHandled.Clear();
+    }
 }
 
 public sealed record PendingMedia(MediaKind Kind, string FileId, string UniqueId, bool InGroup);
@@ -47,4 +59,3 @@ public sealed class RemovalState
 
     public void Clear() { Pending.Clear(); Kept.Clear(); AlbumId = 0; PreviewOffset = 0; PromptMsgId = 0; } // was ClearPending()
 }
-

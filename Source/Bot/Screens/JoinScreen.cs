@@ -1,6 +1,7 @@
 using nAlbum.Bot.Ui;
 using nAlbum.Services;
 using TelegramBotBase.Base;
+using nAlbum.Localization;
 
 namespace nAlbum.Bot.Screens;
 
@@ -14,7 +15,7 @@ public sealed class JoinScreen : Screen
 
     public override async Task OnCommand(MessageResult m, string command, IReadOnlyList<string> args)
     {
-        if (args.Count == 0) await Ctx.Ui.Say(Ctx.T("Usage: /join CODE"));
+        if (args.Count == 0) await Ctx.Ui.Say(Ctx.T(LocKey.JoinUsage));
         else await TryJoin(args[0]);
     }
 
@@ -27,7 +28,7 @@ public sealed class JoinScreen : Screen
         }
         else
         {
-            await Ctx.Ui.Say(Ctx.T("Send me an access code to open an album, or use the menu."), Ctx.Ui.MenuButtons());
+            await Ctx.Ui.Say(Ctx.T(LocKey.JoinHint), Ctx.Ui.MenuButtons());
         }
     }
 
@@ -43,7 +44,7 @@ public sealed class JoinScreen : Screen
         if (Ctx.Throttle.IsThrottled(Ctx.UserId))
         {
             await Ctx.Stats.IncrementAsync(StatKeys.CodeThrottled);
-            await Ctx.Ui.Say(Ctx.T("⏳ Too many wrong codes. Please try again in a few minutes."));
+            await Ctx.Ui.Say(Ctx.T(LocKey.JoinThrottled));
             return;
         }
 
@@ -53,12 +54,12 @@ public sealed class JoinScreen : Screen
         {
             Ctx.Throttle.RegisterFailedAttempt(Ctx.UserId);
             await Ctx.Stats.IncrementAsync(StatKeys.CodeFailures);
-            await Ctx.Ui.Say(Ctx.T("❌ Wrong code, or the album is closed."));
+            await Ctx.Ui.Say(Ctx.T(LocKey.JoinWrongCode));
             return;
         }
 
         await Ctx.Stats.IncrementAsync(StatKeys.CodeJoins);
         var (card, bf) = await Ctx.Cards.Build(album);
-        await Ctx.Ui.Say(Ctx.T("✅ Access granted.\n\n") + card, bf);
+        await Ctx.Ui.Say(Ctx.T(LocKey.JoinGranted) + card, bf);
     }
 }
