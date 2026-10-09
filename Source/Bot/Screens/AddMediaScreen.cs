@@ -133,28 +133,35 @@ public sealed class AddMediaScreen : Screen
 
     private async Task<bool> StillInChat(int messageId)
     {
-        // Reactions can succeed on deleted messages, so probe by forwarding the message and removing the forward.
-        Message copy;
         try
         {
-            await Ctx.SetAction(ChatAction.Typing);
-            copy = await Ctx.Device.Dispatch(a => a.ForwardMessage(
-                Ctx.Device.DeviceId, Ctx.Device.DeviceId, messageId, disableNotification: true));
+            await Ctx.Device.Dispatch(a => a.SetMessageReaction(
+                Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = "👌" }]));
+            return true;
         }
         catch (ApiRequestException ex) when (ex.ErrorCode == 400)
         {
-            await Console.Error.WriteLineAsync($"Pending media {messageId} is gone: {ex.Message}");
-            return false;   // the original message no longer exists
+            if (ex.Message.Contains("message to react not found", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("message_id_invalid", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("message not found", StringComparison.OrdinalIgnoreCase))
+            {
+                await Console.Error.WriteLineAsync($"Pending media {messageId} is gone: {ex.Message}");
+                return false;
+            }
+
+            await Console.Error.WriteLineAsync($"Presence probe for {messageId} failed ({ex.ErrorCode}): {ex.Message}");
+            return true;   // cannot tell; keep the media rather than lose it
         }
         catch (ApiRequestException ex)
         {
             await Console.Error.WriteLineAsync($"Presence probe for {messageId} failed ({ex.ErrorCode}): {ex.Message}");
             return true;   // cannot tell; keep the media rather than lose it
         }
-
-        try { await Ctx.Device.Dispatch(a => a.DeleteMessage(Ctx.Device.DeviceId, copy.MessageId)); }
-        catch (ApiRequestException) { }
-        return true;
+        catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+        {
+            await Console.Error.WriteLineAsync($"Presence probe for {messageId} failed: {ex.Message}");
+            return true;   // cannot tell; keep the media rather than lose it
+        }
     }
 
     private bool FirstOfGroup(Message msg)
