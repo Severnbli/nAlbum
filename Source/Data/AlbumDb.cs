@@ -12,6 +12,7 @@ public class AlbumDb : DbContext
     public DbSet<MediaItem> Media => Set<MediaItem>();
     public DbSet<AlbumAccess> Access => Set<AlbumAccess>();
     public DbSet<BotUser> BotUsers => Set<BotUser>();
+    public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
     public DbSet<AlbumViewStat> AlbumViewStats => Set<AlbumViewStat>();
     public DbSet<Counter> Counters => Set<Counter>();
 
@@ -41,6 +42,13 @@ public class AlbumDb : DbContext
         {
             e.HasKey(x => x.UserId);
             e.Property(x => x.UserId).ValueGeneratedNever();
+        });
+
+        b.Entity<UserPreference>(e =>
+        {
+            e.HasKey(x => x.UserId);
+            e.Property(x => x.UserId).ValueGeneratedNever();
+            e.Property(x => x.LanguageCode).HasMaxLength(16);
         });
 
         b.Entity<AlbumViewStat>(e =>
