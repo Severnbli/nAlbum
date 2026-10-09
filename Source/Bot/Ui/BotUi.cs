@@ -1,9 +1,13 @@
+using nAlbum.Bot.Screens;
 using nAlbum.Data;
+using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using TelegramBotBase.Sessions;
 using nAlbum.Localization;
 
 namespace nAlbum.Bot.Ui;
@@ -17,7 +21,17 @@ public sealed class BotUi
 
     /// <summary>Sends a new HTML message.</summary>
     public Task<Message> Say(string html, ButtonForm bf = null) =>
-        Ctx.Device.Send(html, bf, parseMode: ParseMode.Html);
+        Ctx.Device.Dispatch(a => a.SendMessage(Ctx.Device.DeviceId, html, parseMode: ParseMode.Html,
+            replyMarkup: Markup(bf), linkPreviewOptions: NoLinkPreview));
+
+    private static readonly LinkPreviewOptions NoLinkPreview = new() { IsDisabled = true };
+
+    private static InlineKeyboardMarkup Markup(ButtonForm bf) =>
+        bf == null ? null : new InlineKeyboardMarkup(bf.ToInlineButtonArray());
+
+    private Task EditText(int messageId, string html, ButtonForm bf) =>
+        Ctx.Device.Dispatch(a => a.EditMessageText(Ctx.Device.DeviceId, messageId, html, parseMode: ParseMode.Html,
+            replyMarkup: Markup(bf), linkPreviewOptions: NoLinkPreview));
 
     /// <summary>Edits the message the button belongs to; falls back to a new message.</summary>
     public async Task Show(MessageResult m, string html, ButtonForm bf)
@@ -26,7 +40,7 @@ public sealed class BotUi
         {
             try
             {
-                await Ctx.Device.Edit(m.MessageId, html, bf, ParseMode.Html);
+                await EditText(m.MessageId, html, bf);
                 return;
             }
             catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
@@ -65,7 +79,7 @@ public sealed class BotUi
 
         try
         {
-            await Ctx.Device.Edit(v.NavId, html, bf, ParseMode.Html);
+            await EditText(v.NavId, html, bf);
         }
         catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
         {
@@ -76,14 +90,28 @@ public sealed class BotUi
         }
     }
 
+    public async Task<(List<MediaItem> Items, int Missing)?> CollectPickedMedia(DataResult data)
+    {
+        var msg = data.Message;
+        if (!AddMediaScreen.TryExtract(msg, out var media)) return null;
+
+        await TryDelete(msg.MessageId); // keep the chat tidy
+        var item = await Ctx.Media.FindByUniqueId(Ctx.Session.AlbumId, media.UniqueId);
+        var pick = Ctx.Session.Removal.Pick;
+        var ticket = await pick.Add(item);
+        await Task.Delay(TimeSpan.FromMilliseconds(800));
+        return await pick.Take(ticket);
+    }
+
     public ButtonForm MenuButtons()
     {
         var bf = new ButtonForm();
         bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
         bf.AddButtonRow(Ctx.T(LocKey.MenuMyAlbums), "mine:0");
         bf.AddButtonRow(Ctx.T(LocKey.MenuSharedWithMe), "shared:0");
-        bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuGlobalStatistics), "gstats");
         if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuDetailedStatistics), "stats");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
         return bf;
     }
 

@@ -18,9 +18,13 @@ public sealed class AlbumCard
 
         var sb = new StringBuilder();
         sb.Append($"📁 <b>{Text.H(album.Title)}</b>");
-        if (watch != null) sb.Append('\n').Append(Ctx.F(LocKey.CardViewStats, Text.N(watch.Views), Text.N(watch.Pages)));
-        sb.Append('\n').Append(Ctx.F(LocKey.CardMedia, count));
-        if (isOwner && album.NextNumber > 1) sb.Append(Ctx.F(LocKey.CardLastNumber, album.NextNumber - 1));
+        var details = new List<string>();
+        if (watch != null) details.Add(Ctx.F(LocKey.CardViewStats, Text.N(watch.Views), Text.N(watch.Pages)));
+        var media = Ctx.F(LocKey.CardMedia, count);
+        if (isOwner && album.NextNumber > 1)
+            media += Ctx.F(LocKey.CardLastNumber, album.NextNumber - 1);
+        details.Add(media);
+        sb.Append("\n➖➖➖\n").Append(string.Join("\n", details));
 
         var bf = new ButtonForm();
         if (!isOwner)
@@ -32,12 +36,12 @@ public sealed class AlbumCard
 
         if (album.IsOpen)
         {
-            sb.Append(Ctx.F(LocKey.CardOpen, album.AccessCode));
+            sb.Append("\n➖➖➖\n").Append(Ctx.F(LocKey.CardOpen, album.AccessCode).TrimStart('\n'));
             sb.Append(Ctx.F(LocKey.CardLink, BotInfo.Username, album.AccessCode));
         }
         else
         {
-            sb.Append(Ctx.T(LocKey.CardClosed));
+            sb.Append("\n➖➖➖\n").Append(Ctx.T(LocKey.CardClosed).TrimStart('\n'));
         }
 
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonView), $"view:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonRandom), $"rnd:{album.Id}"));

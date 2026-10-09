@@ -19,6 +19,45 @@ public sealed class RemoveScreen : Screen
 
     public override Task OnText(MessageResult m, string text) => OnRemovePromptText(m, text);
 
+    /// <summary>Media sent in the prompt: the matching items join the selection and the preview is shown.</summary>
+    public override async Task OnMedia(DataResult data)
+    {
+        var picked = await Ctx.Ui.CollectPickedMedia(data);
+        if (picked == null) return;
+        var (items, missing) = picked.Value;
+
+        var album = await Ctx.Albums.GetAlbum(Ctx.Session.AlbumId);
+        if (album == null || album.OwnerId != Ctx.UserId || Ctx.Session.Mode != Mode.RemovePrompt)
+        {
+            if (Ctx.Session.Mode == Mode.RemovePrompt) Ctx.Session.Mode = Mode.Idle;
+            return;
+        }
+
+        var note = missing > 0 ? Ctx.F(LocKey.MediaNotInAlbum, missing) : null;
+        if (items.Count == 0)
+        {
+            await RefreshRemoveScreen(album, note);
+            return;
+        }
+
+        var r = Ctx.Session.Removal;
+        if (r.AlbumId != album.Id)
+        {
+            r.Pending.Clear();
+            r.Kept.Clear();
+        }
+
+        foreach (var item in items)
+        {
+            if (r.Pending.All(x => x.Item.Id != item.Id)) r.Pending.Add((item.Number, item));
+            r.Kept.Remove(item.Id);
+        }
+
+        r.Pending.Sort((a, b) => a.Number.CompareTo(b.Number));
+        r.AlbumId = album.Id;
+        await RenderRemovePreview(album, 0, Ctx.Session.View.NavId != 0 ? Ctx.Session.View.NavId : r.PromptMsgId, note);
+    }
+
     public override async Task OnCallback(MessageResult m, string[] p)
     {
         if (p[0] == "rmlist") await OnRemovePrompt(m, p);

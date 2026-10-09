@@ -80,7 +80,10 @@ public class AlbumsForm : FormBase
     public override async Task SentData(DataResult data)
     {
         if (!_ctx.IsPrivate) return;
-        await _add.OnMedia(data);                                    // adds in Mode.Adding, otherwise shows a hint
+        if (_ctx.Session.Mode is Mode.Removing or Mode.RemovePrompt && _byMode.TryGetValue(_ctx.Session.Mode, out var owner))
+            await owner.OnMedia(data);                               // media picks items to delete
+        else
+            await _add.OnMedia(data);                                // adds in Mode.Adding, otherwise shows a hint
     }
 
     public override async Task Edited(MessageResult message)
