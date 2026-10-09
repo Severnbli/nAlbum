@@ -32,7 +32,7 @@ public sealed class RemoveScreen : Screen
 
         if (await Ctx.Media.MediaCount(album.Id) == 0)
         {
-            await m.ConfirmAction("Nothing to remove.", true);
+            await m.ConfirmAction(Ctx.T("Nothing to remove."), true);
             return;
         }
 
@@ -49,16 +49,13 @@ public sealed class RemoveScreen : Screen
     {
         var r = Ctx.Session.Removal;
         var total = await Ctx.Media.MediaCount(album.Id);
-        var text = $"🗑 <b>Remove media</b> – {Text.H(album.Title)} ({total} items)\n\n" +
-                   "Type the numbers of the items to delete, e.g. <code>5</code>, <code>1 2 3</code> or <code>1-3</code>.\n" +
-                   "Numbers are permanent — deleting items never renumbers the others.\n" +
-                   "You will see a preview first and can cancel before anything is deleted.\n" +
-                   "Don't know the numbers? Open the view with numbers.";
+        var text = Ctx.F("🗑 Remove media – {0} ({1} items)", Text.H(album.Title), total) + "\n\n" +
+                   Ctx.T("Type the numbers of the items to delete, e.g. <code>5</code>, <code>1 2 3</code> or <code>1-3</code>.\nNumbers are permanent — deleting items never renumbers the others.\nYou will see a preview first and can cancel before anything is deleted.\nDon't know the numbers? Open the view with numbers.");
         if (note != null) text = note + "\n\n" + text;
 
         var bf = new ButtonForm();
-        bf.AddButtonRow("👀 View with numbers", $"vp:{album.Id}:0:1");
-        bf.AddButtonRow("⬅ Cancel", $"al:{album.Id}");
+        bf.AddButtonRow(Ctx.T("👀 View with numbers"), $"vp:{album.Id}:0:1");
+        bf.AddButtonRow(Ctx.T("⬅ Cancel"), $"al:{album.Id}");
 
         if (r.PromptMsgId != 0)
         {
@@ -95,14 +92,14 @@ public sealed class RemoveScreen : Screen
         var numbers = NumberParser.Parse(text);
         if (numbers == null || numbers.Count == 0)
         {
-            await RefreshRemoveScreen(album, "⚠️ I couldn't read that. Examples: 5, 1 2 3, 1-3");
+            await RefreshRemoveScreen(album, Ctx.T("⚠️ I couldn't read that. Examples: 5, 1 2 3, 1-3"));
             return;
         }
 
         var resolved = await Ctx.Media.ResolveNumbers(album.Id, numbers);
         if (resolved.Count == 0)
         {
-            await RefreshRemoveScreen(album, "⚠️ No items with those numbers.");
+            await RefreshRemoveScreen(album, Ctx.T("⚠️ No items with those numbers."));
             return;
         }
 
@@ -113,7 +110,7 @@ public sealed class RemoveScreen : Screen
         r.AlbumId = album.Id;
 
         var skipped = numbers.Count - resolved.Count;
-        var note = skipped > 0 ? $"ℹ️ {skipped} number(s) were not found and ignored." : null;
+        var note = skipped > 0 ? Ctx.F("ℹ️ {0} number(s) were not found and ignored.", skipped) : null;
         await RenderRemovePreview(album, 0, Ctx.Session.View.NavId != 0 ? Ctx.Session.View.NavId : r.PromptMsgId, note);
     }
 
@@ -141,13 +138,13 @@ public sealed class RemoveScreen : Screen
 
         var page = r.Pending.Skip(offset).Take(ViewPage).ToList();
         var items = page.Select(x => x.Item).ToList();
-        var captions = MediaView.NumberCaptions(page.Select(x => x.Number).ToList());
+        var captions = MediaView.NumberCaptions(page.Select(x => x.Number).ToList(), Ctx.T);
         var (text, nav) = RemovePreviewNav(album, offset, page, note);
 
         await Ctx.View.ShowViewPage(
             clickedMessageId,
             items,
-            failed => text + (failed > 0 ? $"\n⚠️ {failed} item(s) could not be shown (they can still be deleted)." : ""),
+            failed => text + (failed > 0 ? "\n" + Ctx.F("⚠️ {0} item(s) could not be shown (they can still be deleted).", failed) : ""),
             nav,
             captions);
         r.PromptMsgId = 0; // the prompt message was replaced by the preview
@@ -159,11 +156,8 @@ public sealed class RemoveScreen : Screen
         var r = Ctx.Session.Removal;
         var toDelete = r.Pending.Count(x => !r.Kept.Contains(x.Item.Id));
 
-        var text = $"🗑 <b>Preview</b> – {Text.H(album.Title)}\n" +
-                   $"Selected {r.Pending.Count}, showing {offset + 1}–{offset + page.Count}.\n" +
-                   "The numbers under the pictures are listed in picture order.\n" +
-                   "Tap a number to keep it (↩) or to delete it again (🗑). Type other numbers to replace the selection.\n" +
-                   $"<b>Will be deleted: {toDelete} of {r.Pending.Count}</b>";
+        var text = Ctx.F("🗑 <b>Preview</b> – {0}\nSelected {1}, showing {2}–{3}.\nThe numbers under the pictures are listed in picture order.\nTap a number to keep it (↩) or to delete it again (🗑). Type other numbers to replace the selection.\n<b>Will be deleted: {4} of {1}</b>",
+            Text.H(album.Title), r.Pending.Count, offset + 1, offset + page.Count, toDelete);
         if (note != null) text = note + "\n\n" + text;
 
         var bf = new ButtonForm();
@@ -182,13 +176,13 @@ public sealed class RemoveScreen : Screen
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
 
         var navRow = new List<ButtonBase>();
-        if (offset > 0) navRow.Add(new ButtonBase("◀ Prev", $"rmp:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
-        if (offset + ViewPage < r.Pending.Count) navRow.Add(new ButtonBase("Next ▶", $"rmp:{album.Id}:{offset + ViewPage}"));
+        if (offset > 0) navRow.Add(new ButtonBase(Ctx.T("◀ Prev"), $"rmp:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
+        if (offset + ViewPage < r.Pending.Count) navRow.Add(new ButtonBase(Ctx.T("Next ▶"), $"rmp:{album.Id}:{offset + ViewPage}"));
         if (navRow.Count > 0) bf.AddButtonRow(navRow.ToArray());
 
         var actions = new List<ButtonBase>();
-        if (toDelete > 0) actions.Add(new ButtonBase($"🗑 Delete {toDelete}", $"rmy:{album.Id}"));
-        actions.Add(new ButtonBase("✖ Cancel", $"rmc:{album.Id}"));
+        if (toDelete > 0) actions.Add(new ButtonBase(Ctx.F("🗑 Delete {0}", toDelete), $"rmy:{album.Id}"));
+        actions.Add(new ButtonBase(Ctx.T("✖ Cancel"), $"rmc:{album.Id}"));
         bf.AddButtonRow(actions.ToArray());
 
         return (text, bf);
@@ -201,14 +195,14 @@ public sealed class RemoveScreen : Screen
         if (Ctx.Session.Mode != Mode.RemovePrompt || r.Pending.Count == 0 || m.MessageId != Ctx.Session.View.NavId ||
             (albumId != 0 && r.AlbumId != albumId))
         {
-            await m.ConfirmAction("This preview has expired. Start again from 🗑 Remove media.", true);
+            await m.ConfirmAction(Ctx.T("This preview has expired. Start again from 🗑 Remove media."), true);
             return null;
         }
 
         var album = await Ctx.Albums.GetAlbum(r.AlbumId);
         if (album == null || album.OwnerId != Ctx.UserId)
         {
-            await m.ConfirmAction("Album not found or you are not its owner.", true);
+            await m.ConfirmAction(Ctx.T("Album not found or you are not its owner."), true);
             return null;
         }
 
@@ -228,7 +222,7 @@ public sealed class RemoveScreen : Screen
                 var id = Text.Long(p, 1);
                 if (r.Pending.All(x => x.Item.Id != id))
                 {
-                    await m.ConfirmAction("This preview has expired. Start again from 🗑 Remove media.", true);
+                    await m.ConfirmAction(Ctx.T("This preview has expired. Start again from 🗑 Remove media."), true);
                     return;
                 }
 
@@ -246,7 +240,7 @@ public sealed class RemoveScreen : Screen
 
             case "rmc": // cancel everything
             {
-                await m.ConfirmAction("Cancelled – nothing was deleted.");
+                await m.ConfirmAction(Ctx.T("Cancelled – nothing was deleted."));
                 r.Clear();
                 Ctx.Session.Mode = Mode.Idle;
                 await Ctx.View.ClearView(m.MessageId);
@@ -260,7 +254,7 @@ public sealed class RemoveScreen : Screen
                 var ids = r.Pending.Where(x => !r.Kept.Contains(x.Item.Id)).Select(x => x.Item.Id).ToList();
                 if (ids.Count == 0)
                 {
-                    await m.ConfirmAction("Nothing selected to delete.", true);
+                    await m.ConfirmAction(Ctx.T("Nothing selected to delete."), true);
                     return;
                 }
 
@@ -270,7 +264,7 @@ public sealed class RemoveScreen : Screen
                 Ctx.Session.Mode = Mode.Idle;
                 await Ctx.View.ClearView(m.MessageId);
                 var (card, bf) = await Ctx.Cards.Build(album);
-                await Ctx.Ui.Show(m, $"✅ Deleted {deleted} item(s).\n\n{card}", bf);
+                await Ctx.Ui.Show(m, Ctx.F("✅ Deleted {0} item(s).\n\n", deleted) + card, bf);
                 break;
             }
         }

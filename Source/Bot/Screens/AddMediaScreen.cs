@@ -18,7 +18,7 @@ public sealed class AddMediaScreen : Screen
 
     public override async Task OnText(MessageResult m, string text)
     {
-        await Ctx.Ui.Say("Only photos and videos can be added. Press Done when finished.");
+        await Ctx.Ui.Say(Ctx.T("Only photos and videos can be added. Press Done when finished."));
     }
 
     public override async Task OnCallback(MessageResult m, string[] p)
@@ -34,11 +34,8 @@ public sealed class AddMediaScreen : Screen
                 Ctx.Session.AlbumId = album.Id;
                 Ctx.Session.Add.Added = Ctx.Session.Add.Skipped = 0;
                 var bf = new ButtonForm();
-                bf.AddButtonRow("✅ Done", $"done:{album.Id}");
-                await Ctx.Ui.Say(
-                    $"📥 Adding to <b>{Text.H(album.Title)}</b>.\n" +
-                    "Send or forward photos and videos – as many as you like. " +
-                    "Duplicates are skipped automatically.\nPress <b>Done</b> when finished.", bf);
+                bf.AddButtonRow(Ctx.T("✅ Done"), $"done:{album.Id}");
+                await Ctx.Ui.Say(Ctx.F("📥 Adding to <b>{0}</b>.\nSend or forward photos and videos – as many as you like. Duplicates are skipped automatically.\nPress <b>Done</b> when finished.", Text.H(album.Title)), bf);
                 break;
             }
 
@@ -50,7 +47,7 @@ public sealed class AddMediaScreen : Screen
                 await Ctx.View.ClearView(m.MessageId);
                 var add = Ctx.Session.Add;
                 var summary = Ctx.Session.Mode == Mode.Adding && Ctx.Session.AlbumId == album.Id
-                    ? $"✅ Saved: {add.Added} added" + (add.Skipped > 0 ? $", {add.Skipped} duplicates skipped" : "") + ".\n\n"
+                    ? Ctx.F("✅ Saved: {0} added", add.Added) + (add.Skipped > 0 ? Ctx.F(", {0} duplicates skipped", add.Skipped) : "") + ".\n\n"
                     : "";
                 Ctx.Session.Mode = Mode.Idle;
                 var (card, bf) = await Ctx.Cards.Build(album);
@@ -77,13 +74,13 @@ public sealed class AddMediaScreen : Screen
         }
         else
         {
-            if (Ctx.Session.Mode == Mode.Adding) await Ctx.Ui.Say("Only photos and videos can be added. Press Done when finished.");
+            if (Ctx.Session.Mode == Mode.Adding) await Ctx.Ui.Say(Ctx.T("Only photos and videos can be added. Press Done when finished."));
             return;
         }
 
         if (Ctx.Session.Mode != Mode.Adding)
         {
-            if (FirstOfGroup(msg)) await Ctx.Ui.Say("To add media, open one of your albums and press ➕ Add media.", Ctx.Ui.MenuButtons());
+            if (FirstOfGroup(msg)) await Ctx.Ui.Say(Ctx.T("To add media, open one of your albums and press ➕ Add media."), Ctx.Ui.MenuButtons());
             return;
         }
 
