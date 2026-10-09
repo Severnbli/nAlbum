@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace nAlbum.Source;
+namespace nAlbum.Data;
 
 /// <summary>
 /// Versioned schema upgrades via PRAGMA user_version (no EF migrations in this project).

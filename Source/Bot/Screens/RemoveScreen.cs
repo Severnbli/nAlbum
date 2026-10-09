@@ -1,0 +1,277 @@
+using nAlbum.Bot.Ui;
+using nAlbum.Data;
+using Telegram.Bot.Exceptions;
+using Telegram.Bot.Types.Enums;
+using TelegramBotBase.Base;
+using TelegramBotBase.Form;
+
+namespace nAlbum.Bot.Screens;
+
+public sealed class RemoveScreen : Screen
+{
+    private const int ViewPage = 10;
+
+    public RemoveScreen(BotContext ctx) : base(ctx) { }
+
+    public override IReadOnlyCollection<string> Callbacks => new[] { "rmlist", "rmt", "rmp", "rmy", "rmc" };
+    public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.RemovePrompt };
+
+    public override Task OnText(MessageResult m, string text) => OnRemovePromptText(m, text);
+
+    public override async Task OnCallback(MessageResult m, string[] p)
+    {
+        if (p[0] == "rmlist") await OnRemovePrompt(m, p);
+        else await OnRemovePreviewAction(m, p);
+    }
+
+    /// <summary>Card button "🗑 Remove media": turns the card message into the "type numbers" prompt.</summary>
+    private async Task OnRemovePrompt(MessageResult m, string[] p)
+    {
+        var album = await Ctx.Ui.OwnedAlbum(m, p);
+        if (album == null) return;
+
+        if (await Ctx.Media.MediaCount(album.Id) == 0)
+        {
+            await m.ConfirmAction("Nothing to remove.", true);
+            return;
+        }
+
+        await m.ConfirmAction();
+        await Ctx.View.ClearView(m.MessageId);   // drop any album still on screen, keep the clicked message
+        Ctx.Session.Removal.Clear();
+        Ctx.Session.Mode = Mode.RemovePrompt;
+        Ctx.Session.AlbumId = album.Id;
+        Ctx.Session.Removal.PromptMsgId = m.MessageId;
+        await RenderRemovePrompt(album, null);
+    }
+
+    private async Task RenderRemovePrompt(Album album, string note)
+    {
+        var r = Ctx.Session.Removal;
+        var total = await Ctx.Media.MediaCount(album.Id);
+        var text = $"🗑 <b>Remove media</b> – {Text.H(album.Title)} ({total} items)\n\n" +
+                   "Type the numbers of the items to delete, e.g. <code>5</code>, <code>1 2 3</code> or <code>1-3</code>.\n" +
+                   "You will see a preview first and can cancel before anything is deleted.\n" +
+                   "Don't know the numbers? Open the view with numbers.";
+        if (note != null) text = note + "\n\n" + text;
+
+        var bf = new ButtonForm();
+        bf.AddButtonRow("👀 View with numbers", $"vp:{album.Id}:0:1");
+        bf.AddButtonRow("⬅ Cancel", $"al:{album.Id}");
+
+        if (r.PromptMsgId != 0)
+        {
+            try
+            {
+                await Ctx.Device.Edit(r.PromptMsgId, text, bf, ParseMode.Html);
+                return;
+            }
+            catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
+            {
+                return;
+            }
+            catch (ApiRequestException)
+            {
+                // prompt message is gone -> send a new one
+            }
+        }
+
+        r.PromptMsgId = (await Ctx.Ui.Say(text, bf))?.MessageId ?? 0;
+    }
+
+    /// <summary>Typed numbers in Mode.RemovePrompt: build (or replace) the selection and show the preview. Deletes nothing.</summary>
+    private async Task OnRemovePromptText(MessageResult message, string text)
+    {
+        var album = await Ctx.Albums.GetAlbum(Ctx.Session.AlbumId);
+        if (album == null || album.OwnerId != Ctx.UserId)
+        {
+            Ctx.Session.Mode = Mode.Idle;
+            return;
+        }
+
+        await Ctx.Ui.TryDelete(message.MessageId); // keep the chat tidy
+
+        var positions = NumberParser.Parse(text);
+        if (positions == null || positions.Count == 0)
+        {
+            await RefreshRemoveScreen(album, "⚠️ I couldn't read that. Examples: 5, 1 2 3, 1-3");
+            return;
+        }
+
+        var resolved = await Ctx.Media.ResolvePositions(album.Id, positions);
+        if (resolved.Count == 0)
+        {
+            await RefreshRemoveScreen(album, "⚠️ No items with those numbers.");
+            return;
+        }
+
+        var r = Ctx.Session.Removal;
+        r.Pending.Clear();
+        r.Kept.Clear();
+        r.Pending.AddRange(resolved);
+        r.AlbumId = album.Id;
+
+        var skipped = positions.Count - resolved.Count;
+        var note = skipped > 0 ? $"ℹ️ {skipped} number(s) are out of range and were ignored." : null;
+        await RenderRemovePreview(album, 0, Ctx.Session.View.NavId != 0 ? Ctx.Session.View.NavId : r.PromptMsgId, note);
+    }
+
+    /// <summary>Shows a one-line note without redrawing media: on the preview nav if one is on screen, else on the prompt.</summary>
+    private async Task RefreshRemoveScreen(Album album, string note)
+    {
+        var r = Ctx.Session.Removal;
+        if (r.Pending.Count > 0 && Ctx.Session.View.NavId != 0)
+        {
+            var page = r.Pending.Skip(r.PreviewOffset).Take(ViewPage).ToList();
+            var (text, bf) = RemovePreviewNav(album, r.PreviewOffset, page, note);
+            await Ctx.Ui.EditNav(text, bf);
+            return;
+        }
+
+        await RenderRemovePrompt(album, note);
+    }
+
+    private async Task RenderRemovePreview(Album album, int offset, int clickedMessageId, string note)
+    {
+        var r = Ctx.Session.Removal;
+        var lastPageStart = Math.Max(r.Pending.Count - 1, 0) / ViewPage * ViewPage;
+        offset = Math.Clamp(offset, 0, lastPageStart);
+        r.PreviewOffset = offset;
+
+        var page = r.Pending.Skip(offset).Take(ViewPage).ToList();
+        var items = page.Select(x => x.Item).ToList();
+        var captions = MediaView.NumberCaptions(page.Select(x => x.Number).ToList());
+        var (text, nav) = RemovePreviewNav(album, offset, page, note);
+
+        await Ctx.View.ShowViewPage(
+            clickedMessageId,
+            items,
+            failed => text + (failed > 0 ? $"\n⚠️ {failed} item(s) could not be shown (they can still be deleted)." : ""),
+            nav,
+            captions);
+        r.PromptMsgId = 0; // the prompt message was replaced by the preview
+    }
+
+    private (string Text, ButtonForm Buttons) RemovePreviewNav(Album album, int offset,
+        List<(int Number, MediaItem Item)> page, string note)
+    {
+        var r = Ctx.Session.Removal;
+        var toDelete = r.Pending.Count(x => !r.Kept.Contains(x.Item.Id));
+
+        var text = $"🗑 <b>Preview</b> – {Text.H(album.Title)}\n" +
+                   $"Selected {r.Pending.Count}, showing {offset + 1}–{offset + page.Count}.\n" +
+                   "The numbers under the pictures are listed in picture order.\n" +
+                   "Tap a number to keep it (↩) or to delete it again (🗑). Type other numbers to replace the selection.\n" +
+                   $"<b>Will be deleted: {toDelete} of {r.Pending.Count}</b>";
+        if (note != null) text = note + "\n\n" + text;
+
+        var bf = new ButtonForm();
+        var row = new List<ButtonBase>();
+        foreach (var (number, item) in page)
+        {
+            var kept = r.Kept.Contains(item.Id);
+            row.Add(new ButtonBase($"{(kept ? "↩" : "🗑")} #{number}", $"rmt:{item.Id}:{offset}"));
+            if (row.Count == 5)
+            {
+                bf.AddButtonRow(row.ToArray());
+                row = new List<ButtonBase>();
+            }
+        }
+
+        if (row.Count > 0) bf.AddButtonRow(row.ToArray());
+
+        var navRow = new List<ButtonBase>();
+        if (offset > 0) navRow.Add(new ButtonBase("◀ Prev", $"rmp:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
+        if (offset + ViewPage < r.Pending.Count) navRow.Add(new ButtonBase("Next ▶", $"rmp:{album.Id}:{offset + ViewPage}"));
+        if (navRow.Count > 0) bf.AddButtonRow(navRow.ToArray());
+
+        var actions = new List<ButtonBase>();
+        if (toDelete > 0) actions.Add(new ButtonBase($"🗑 Delete {toDelete}", $"rmy:{album.Id}"));
+        actions.Add(new ButtonBase("✖ Cancel", $"rmc:{album.Id}"));
+        bf.AddButtonRow(actions.ToArray());
+
+        return (text, bf);
+    }
+
+    /// <summary>The preview is live only for the owner, in Mode.RemovePrompt, with a non-empty selection of that album.</summary>
+    private async Task<Album> LivePreview(MessageResult m, long albumId)
+    {
+        var r = Ctx.Session.Removal;
+        if (Ctx.Session.Mode != Mode.RemovePrompt || r.Pending.Count == 0 || m.MessageId != Ctx.Session.View.NavId ||
+            (albumId != 0 && r.AlbumId != albumId))
+        {
+            await m.ConfirmAction("This preview has expired. Start again from 🗑 Remove media.", true);
+            return null;
+        }
+
+        var album = await Ctx.Albums.GetAlbum(r.AlbumId);
+        if (album == null || album.OwnerId != Ctx.UserId)
+        {
+            await m.ConfirmAction("Album not found or you are not its owner.", true);
+            return null;
+        }
+
+        return album;
+    }
+
+    private async Task OnRemovePreviewAction(MessageResult m, string[] p)
+    {
+        var r = Ctx.Session.Removal;
+        var album = await LivePreview(m, p[0] == "rmt" ? 0 : Text.Long(p, 1));
+        if (album == null) return;
+
+        switch (p[0])
+        {
+            case "rmt": // toggle keep / delete: only the navigation message changes (no media edits)
+            {
+                var id = Text.Long(p, 1);
+                if (r.Pending.All(x => x.Item.Id != id))
+                {
+                    await m.ConfirmAction("This preview has expired. Start again from 🗑 Remove media.", true);
+                    return;
+                }
+
+                await m.ConfirmAction();
+                if (!r.Kept.Remove(id)) r.Kept.Add(id);
+                r.PreviewOffset = Math.Max(Text.Int(p, 2), 0);
+                await RefreshRemoveScreen(album, null);
+                break;
+            }
+
+            case "rmp": // preview page
+                await m.ConfirmAction();
+                await RenderRemovePreview(album, Text.Int(p, 2), m.MessageId, null);
+                break;
+
+            case "rmc": // cancel everything
+            {
+                await m.ConfirmAction("Cancelled – nothing was deleted.");
+                r.Clear();
+                Ctx.Session.Mode = Mode.Idle;
+                await Ctx.View.ClearView(m.MessageId);
+                var (card, bf) = await Ctx.Cards.Build(album);
+                await Ctx.Ui.Show(m, card, bf);
+                break;
+            }
+
+            case "rmy": // confirm: delete everything that was not kept
+            {
+                var ids = r.Pending.Where(x => !r.Kept.Contains(x.Item.Id)).Select(x => x.Item.Id).ToList();
+                if (ids.Count == 0)
+                {
+                    await m.ConfirmAction("Nothing selected to delete.", true);
+                    return;
+                }
+
+                await m.ConfirmAction();
+                var deleted = await Ctx.Media.DeleteMediaInAlbum(album.Id, ids);
+                r.Clear();
+                Ctx.Session.Mode = Mode.Idle;
+                await Ctx.View.ClearView(m.MessageId);
+                var (card, bf) = await Ctx.Cards.Build(album);
+                await Ctx.Ui.Show(m, $"✅ Deleted {deleted} item(s).\n\n{card}", bf);
+                break;
+            }
+        }
+    }
+}

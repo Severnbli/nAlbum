@@ -1,4 +1,4 @@
-namespace nAlbum.Source;
+namespace nAlbum.Bot;
 
 public static class BotInfo
 {

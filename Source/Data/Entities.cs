@@ -1,4 +1,4 @@
-namespace nAlbum.Source;
+namespace nAlbum.Data;
 
 public enum MediaKind
 {

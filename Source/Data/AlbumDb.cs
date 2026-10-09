@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace nAlbum.Source;
+namespace nAlbum.Data;
 
 public class AlbumDb : DbContext
 {

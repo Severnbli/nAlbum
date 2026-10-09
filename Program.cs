@@ -1,27 +1,31 @@
-using nAlbum.Source;
+using nAlbum.Bot;
+using nAlbum.Config;
+using nAlbum.Data;
+using nAlbum.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
 using TelegramBotBase.Builder;
 using TelegramBotBase.Commands;
 
-var token = Environment.GetEnvironmentVariable("BOT_TOKEN")
-            ?? throw new InvalidOperationException("BOT_TOKEN is not set");
-var dbPath = Environment.GetEnvironmentVariable("DB_PATH") ?? "/data/albums.db";
+var config = AppConfig.FromEnvironment();
 
-var dbDir = Path.GetDirectoryName(Path.GetFullPath(dbPath));
+var dbDir = Path.GetDirectoryName(Path.GetFullPath(config.DbPath));
 if (!string.IsNullOrEmpty(dbDir)) Directory.CreateDirectory(dbDir);
 
 var services = new ServiceCollection()
-    .AddDbContextFactory<AlbumDb>(o => o.UseSqlite($"Data Source={dbPath}"))
+    .AddSingleton(config)
+    .AddDbContextFactory<AlbumDb>(o => o.UseSqlite($"Data Source={config.DbPath}"))
     .AddSingleton<AlbumService>()
+    .AddSingleton<MediaService>()
+    .AddSingleton<CodeThrottle>()
     .BuildServiceProvider();
 
-await SchemaUpgrader.RunAsync(services.GetRequiredService<IDbContextFactory<AlbumDb>>(), dbPath);
+await SchemaUpgrader.RunAsync(services.GetRequiredService<IDbContextFactory<AlbumDb>>(), config.DbPath);
 
 var bot = BotBaseBuilder
     .Create()
-    .WithAPIKey(token)
+    .WithAPIKey(config.BotToken)
     .DefaultMessageLoop()
     .WithServiceProvider<AlbumsForm>(services) // forms are created through DI
     .NoProxy()
