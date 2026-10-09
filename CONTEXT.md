@@ -1,88 +1,89 @@
 # AI context – nAlbum
 
-Single-project Telegram bot (`nAlbum.csproj`, `net10.0`, nullable disabled). UI is one `AlbumsForm` session per private chat; persistence is SQLite via `AlbumService`. No tests, no EF migrations, no web host.
+Single-project Telegram bot (`nAlbum.csproj`, `net10.0`, nullable disabled). UI is one `AlbumsForm` router per private chat; SQLite data access is in singleton services using short-lived contexts. No test project, EF migrations, or web host.
 
 ## Repository map
 
 ```text
-/Program.cs              -> bootstrap, DI, TelegramBotBase builder, EnsureCreated
-/Source/AlbumsForm.cs    -> only form; all user interaction
-/Source/AlbumService.cs  -> all DB + in-process code throttle
-/Source/AlbumDb.cs       -> EF model / indexes
-/Source/Entities.cs      -> Album, MediaItem, AlbumAccess, AlbumListItem, MediaKind
-/Source/BotInfo.cs       -> mutable static Username set after GetMe
-/Dockerfile              -> runtime user uid 10001, VOLUME /data
-/docker-compose.yml      -> env_file .env, DB_PATH=/data/albums.db, volume bot_data
+Program.cs
+Source/
+  Config/AppConfig.cs
+  Data/Entities.cs, AlbumDb.cs, SchemaUpgrader.cs
+  Services/AlbumService.cs, MediaService.cs, CodeThrottle.cs, StatsService.cs
+  Bot/AlbumsForm.cs                 thin update router
+  Bot/BotContext.cs, UserSession.cs
+  Bot/Ui/BotUi.cs, MediaView.cs, AlbumCard.cs, Text.cs
+  Bot/Screens/MenuScreen.cs, AlbumScreen.cs, JoinScreen.cs, AddMediaScreen.cs
+  Bot/Screens/ViewScreen.cs, RemoveScreen.cs, StatsScreen.cs
+  Bot/BotInfo.cs
+Dockerfile                            runtime user uid 10001, VOLUME /data
+docker-compose.yml                    env_file .env, DB_PATH=/data/albums.db, volume bot_data
 ```
 
 ## Architecture constraints
 
 ```text
-Program -> AlbumsForm -> AlbumService -> IDbContextFactory<AlbumDb>
+Program -> AlbumsForm(router) -> Screens -> {BotContext, BotUi, MediaView, AlbumCard, Services}
+Services -> IDbContextFactory<AlbumDb>
 ```
 
 - Only form type registered: `WithServiceProvider<AlbumsForm>(services)`.
-- `AlbumService` is a **singleton**. Every DB method must use a short-lived context from the factory (do not inject `AlbumDb` into the form or the singleton).
+- `AlbumsForm` is the only `FormBase`. Do not add forms: TelegramBotBase redispatches updates and callback routing is active-form-only.
+- Screens never call other screens. Share behavior through `BotContext`, UI helpers, or services; duplicate callback/mode/command registrations must fail fast.
+- Services are **singletons**. Each DB call uses its own short-lived context from `IDbContextFactory<AlbumDb>` (never inject `AlbumDb`).
 - `AlbumsForm.Render()` is empty on purpose; do not move logic there. Handlers: `Load` (text/commands), `SentData` (photo/video), `Action` (callbacks).
-- Groups/channels are ignored (`IsPrivate`). `UserId` is `Device.DeviceId`.
+- `BotContext.Device` is the form's device and is assigned after construction; never read it in constructors. Groups/channels are ignored (`IsPrivate`). In private chats `UserId` is `Device.DeviceId`.
 
 ## Non-obvious behavior
 
 `Program.cs` `BotBaseBuilder`
-- `.NoSerialization()` – `_mode`, `_albumId`, add/remove counters, `_viewIds` live only in the in-memory form. Process restart drops mid-flow state; albums themselves are in SQLite.
-- `.UseThreadPool()` – in-repo comment: keep media upload order. Do not swap the message loop without checking TelegramBotBase + media groups.
-- `.DefaultMessageLoop()` + `.NoProxy()`; compose publishes no ports (no webhook setup in this repo).
-- `.CustomCommands` + `UploadBotCommands()` – `/start`, `/menu`, `/new`, `/join`, `/cancel`.
-- `BotInfo.Username` assigned only after `GetMe`; share links need it.
+- `.NoSerialization()` – all `UserSession` state (mode, add/remove state, view message IDs and paging) is memory-only. Restart drops in-progress UI state; albums are in SQLite.
+- `.UseThreadPool()` remains enabled; media-group updates depend on shared session state and `MediaService` serializes number allocation within the process.
+- `.DefaultMessageLoop()` + `.NoProxy()`; compose publishes no ports. `.CustomCommands` intentionally does **not** register `/stats` because the command is admin-only.
+- `BotInfo.Username` is assigned after `GetMe`; share links need it.
 
-`AlbumsForm` session machine
-- `OnCommand` always sets `_mode = Idle` before handling – `/cancel` and any command abort NewTitle/Rename/Adding/Removing.
-- Access codes in chat are accepted **only in Idle**. In `NewTitle`/`Rename` the same text is a title.
-- Deep link: `/start CODE` → `TryJoin(args[0])`. `/join CODE` and `/start CODE` count a failed throttle attempt when the code is invalid **or** fails `LooksLikeCode` (plain chat text only reaches `TryJoin` after `LooksLikeCode`).
-- Live callbacks:
+`AlbumsForm` routing
+- Any command sets `Mode.Idle` before dispatch; it cancels an in-progress title, rename, add, or remove flow.
+- Access codes in plain text are accepted only while idle. Deep link `/start CODE` and `/join CODE` call `JoinScreen.TryJoin`.
+- `PreLoad` touches private-chat users for active-user statistics; `StatsService` throttles this write to once per five minutes.
+- `/stats` is routed only for configured admins. Non-admins receive the ordinary public-stat welcome; the `stats` callback independently checks authorization.
+- Callbacks (flags: 1 = numbers, 2 = delete mode, 3 = both):
 
 ```text
 menu | new | mine:<page> | shared:<page> | al:<album>
-view:<album>:<offset> | vp:<album>:<offset>
-rnd:<album> | rp:<album>:<seed>:<offset>:<flags>      flags: 1 = numbers, 2 = delete mode (3 = both)
-add:<album> | done:<album>
-rmlist:<album>:<offset>
-toggle:<album> | ren:<album> | del:<album> | delok:<album>
-leave:<album>
+view:<album>:<offset> | vp:<album>:<offset>:<flags>
+rnd:<album> | rp:<album>:<seed>:<offset>:<flags>
+add:<album> | done:<album>                         done is add-media only
+rmlist:<album>:<ignored>                           opens the "type numbers" prompt
+rmt:<mediaId>:<offset> | rmp:<album>:<offset> | rmy:<album> | rmc:<album>
+toggle:<album> | ren:<album> | del:<album> | delok:<album> | leave:<album>
+stats                                              detailed global statistics, admins only
 ```
 
-- `done:` is used for **both** add-media and remove-media.
-- Live remove: `rmlist:<album>:<skip>` → `OnRemoveView` (offset into `ListMedia`, page size `ViewPage`) + typed numbers.
-
 Media add (`SentData`)
-- `FileId` / `FileUniqueId` only (no files on disk).
-- Media-group reaction: once per `MediaGroupId` (`FirstOfGroup`). Ungrouped: 👍 vs 🤔; grouped: always 👍 on the first item even if later items are duplicates.
+- Only Telegram `FileId` / `FileUniqueId` references are stored; no files are downloaded.
+- A duplicate `FileUniqueId` in the same album is skipped. Group reactions are applied once per media group.
+- `MediaService.AddMedia` allocates `Album.NextNumber` under `_addLock` and commits before incrementing the lifetime counter.
 
-View paging (`ShowViewPage`)
-- `ViewPage = 10` matches Telegram’s media-group size.
-- Prev/Next on the **nav** message tries in-place `EditMessageMedia` only if `_viewEditable` and `_viewIds.Count == items.Count`.
-- Otherwise deletes the old media+nav (`DeleteMessages`) and resends. Failed sends mark the page non-editable.
-- `SendBatch`: 429 retried up to 4 times (`RetryAfter` capped at 30s + 1). Other send failures split the group to isolate a bad `FileId`. After 4 flood retries the whole group is counted failed.
-- Captions are an explicit `IReadOnlyList<string>` (`#n` = real album position from `AlbumService.GetPositions`). Ordered remove uses consecutive `#offset+i`; random view looks up each item.
+View paging (`MediaView.ShowViewPage`)
+- Page size is 10. Prev/Next edits the media group in place when possible; otherwise it deletes the previous view and resends it.
+- Send failures split a group to isolate broken file IDs; 429s are retried with a bounded wait.
+- Captions use each item's permanent `MediaItem.Number`, not a computed position.
 
-Remove-by-number
-- Numbers are **1-based positions in the whole album ordered by `MediaItem.Id`**, not the current page.
-- `GetMediaIdsAtPositions` must run **before** `DeleteMedia` (positions shift after delete).
-- `ParsePositions`: `"12"`, `"12 15 18"`, `"12-15"`, `"3, 7-9"`. Any bad token → entire parse `null`. Range must have `lo <= hi` and `hi - lo < 100`. More than 100 numbers → `null`.
-- Typed user message is deleted (`TryDelete`) to keep the chat clean.
-- Also available inside the random view: `Mode.Removing` with `_removeSeed != 0`; `OnRemoveNumbers` then refreshes via `RenderRandomPage` instead of `RenderRemovePage`. `_removeSeed` is reset to 0 in `OnRemoveView`.
+Watch counting
+- A `view:` or `rnd:` callback counts one view. A newly displayed ordered/random page counts once; Prev/Next count, number toggles and delete-preview refreshes do not.
+- The in-memory page key is reset whenever the view is cleared. Per-album/user rows include owner views and cascade-delete with the album; global lifetime counters survive deletion.
 
-`AlbumService.ListMediaShuffled`
+`MediaService.ListMediaShuffled`
 - Order: `(Id * seed) % 2147483647` then `Id` (modulus is prime; seed must be non-zero).
-- `rnd:` picks `Random.Shared.NextInt64(1, 2147483646)` (**upper bound exclusive** → `1..2147483645`).
-- `rp:` reuses seed via `Math.Clamp(..., 1, 2147483646)` and offset in callback_data. Changing the modulus/seed range breaks stable Next/Prev.
+- `rnd:` chooses a seed in `1..2147483645`; `rp:` reuses it for stable Prev/Next paging.
 
 Owner checks
-- Owner writes (`add`/`done`/`rmlist`/`toggle`/`ren`/`del`/`delok`) go through `OwnedAlbum`. Views go through `ViewableAlbum`. `leave:` does **not** – it deletes `AlbumAccess` for `UserId` and shows the shared list. `AlbumService` methods generally do **not** re-check ownership.
+- Owner mutations go through `BotUi.OwnedAlbum`; album views go through `ViewableAlbum`. Leave removes only the current user's grant.
+- Service methods generally do not re-check ownership; callback paths must retain their server-side checks.
 
-`Action` errors
-- Non-`ApiRequestException` → log + “Something went wrong”. `ApiRequestException` is **not** caught there (can bubble).
-- Unknown callback prefix: `ConfirmAction()` only.
+Action errors
+- Unexpected non-API exceptions are logged and surfaced as a generic error. Unknown callback prefixes are acknowledged only.
 
 ## Critical business rules
 
@@ -92,16 +93,20 @@ Owner checks
 - Viewers cannot add/remove/rename/open/close/delete. Owner always `CanView` even when closed.
 - `JoinByCode` grants `AlbumAccess` for non-owners; owner joining by code does not insert access.
 - Duplicate media in an album: same `FileUniqueId` → skip (`AddMedia` false). Unique index `(AlbumId, FileUniqueId)`.
+- Permanent numbers: `Album.NextNumber` never decreases; `MediaItem.Number` is unique within its album. Gaps after deletion are intentional; all display/order queries use `Id` order, not number continuity.
 - Deleting an album is hard delete of album + media rows + access (`DeleteAlbum`). Media files on Telegram are not deleted (bot never stored them).
+- Watch pages mean newly displayed pages per session: opening, Previous, and Next count; number toggles and refreshes after deletion do not.
 - Title: whitespace-collapsed, max 100 (`CleanTitle` + EF `HasMaxLength(100)`).
 
 ## Data model traps
 
-- **No migrations.** `EnsureCreatedAsync()` only creates a missing database. Changing entities will **not** update an existing `albums.db`.
+- **No EF migrations.** `SchemaUpgrader` uses `PRAGMA user_version`; fresh databases use `EnsureCreated`, and upgrades make a `VACUUM INTO` backup before SQL steps. Every model change needs a new upgrade step and fresh-vs-upgraded schema parity check.
+- Upgrade backups are written beside the DB as `albums.db.bak-v<version>-<timestamp>` (the compose `bot_data` volume retains them; remove only after confirming the upgrade).
 - SQLite unique index on `Album.AccessCode` allows multiple NULLs (closed albums).
-- FKs: `MediaItem` and `AlbumAccess` cascade on album delete; `DeleteAlbum` still deletes children explicitly inside a transaction.
+- FKs: `MediaItem`, `AlbumAccess`, and `AlbumViewStat` cascade on album delete; `DeleteAlbum` explicitly removes children inside a transaction.
 - `AlbumAccess` has no surrogate key: composite `(AlbumId, UserId)`.
-- `GetMediaIdsAtPositions` / `DeleteMedia` use sync `CreateDbContext()`; everything else uses `CreateDbContextAsync()`. Missing id at a position is `0` (skipped).
+- `AlbumViewStat` key is `(AlbumId, UserId)`; `Counters` uses `Name` as its key. Raw stats upserts must stay aligned with these EF table/column names.
+- `BotUsers.LastSeenAt` writes are throttled to once per five minutes per user.
 - `ListOwned` order: `Id` desc. `ListShared` order: `GrantedAt` desc, then album `Id` desc. Media list order: `Id` asc (except shuffle).
 
 ## External integrations
@@ -124,23 +129,38 @@ BOT_TOKEN
 DB_PATH
 - Default `/data/albums.db`. Local `dotnet run` without this env uses that same default (not a project-local file).
 - Parent directory is created at startup.
+
+ADMIN_IDS
+- Optional comma-separated Telegram user IDs; only these users see the Detailed statistics button or receive `/stats` output. `.env.example` contains a placeholder ID.
 ```
 
 Do not commit `.env` (gitignored). Compose expects `env_file: .env`.
+
+## Statistics and privacy
+
+- Main menu (all users): current album count plus lifetime views and pages watched.
+- Album card (anyone allowed to view it): that album's ordered+random views and pages, summed across users.
+- Admin-only details: active/new users, open/recent albums, media totals, code activity, lifetime create/delete counters, and top watched albums.
+- A view is an ordered `view:` or random `rnd:` opening; a page is a newly displayed page in that session. Owners count as viewers.
+- Never display user IDs or usernames in statistics; reports contain aggregates only.
+- `Counters` holds lifetime totals and survives album deletion. `AlbumViewStats` is per album/user and is cascade-deleted. Existing lifetime history is seeded only for albums created, media added, and users identifiable from owners/access grants.
+- Stats writes log and swallow errors. Inline menu/card reads return `null` on failure; the admin report may throw and its screen shows a temporary-unavailable message.
 
 ## Background processing / concurrency
 
 - No queued jobs. `Task.Delay(Timeout.Infinite)` keeps the process alive.
 - Failed-code throttle is **in-memory** on the singleton (`_failedCodes`, lock): 5 failures / 10 minutes / user. Lost on restart; **not** shared across multiple containers.
-- `AddMedia` check-then-insert; unique-index race → `DbUpdateException` → treat as duplicate (`false`).
+- `MediaService.AddMedia` serializes number allocation with a process-local `SemaphoreSlim`; running multiple instances against one DB is unsupported.
 - `OpenAlbum` retries code generation up to 10 times on unique collision.
-- `UseThreadPool` + form fields (`_mode`, `_added`, `_lastGroupId`, `_viewIds`) are per-session mutable state; media-group updates rely on that.
+- `UseThreadPool` + `UserSession` fields are per-session mutable state; media-group updates rely on that.
+- Stats aggregates use plain SQLite `COUNT`/`SUM` queries without caching; menu/cards perform a small number of extra queries per render.
 
 ## Docker / runtime traps
 
 - Image user `bot` uid **10001**; `/data` must be writable by that uid (Dockerfile `chown`).
 - Compose: `restart: unless-stopped`, named volume `bot_data` → `/data`.
-- WAL enabled every start: `PRAGMA journal_mode=WAL`.
+- WAL enabled after schema initialization: `PRAGMA journal_mode=WAL`.
+- A schema upgrade creates `albums.db.bak-v*` files next to the database in `bot_data`; delete them after confirming the upgraded database is healthy.
 - Package versions: `Microsoft.EntityFrameworkCore.Sqlite` and `Microsoft.Extensions.DependencyInjection` are `10.0.*` (floating). `TelegramBotBase` is pinned to preview `8.0.0-preview.2`.
 
 ## Testing requirements
@@ -149,18 +169,21 @@ No test project.
 
 ## Dangerous areas
 
-- `AlbumDb` / `Program.EnsureCreatedAsync` – schema edits need a manual plan for existing SQLite files; EnsureCreated will not migrate.
+- `SchemaUpgrader` – every model change requires a bumped version, upgrade step, DB backup, and fresh/upgraded schema parity check.
+- Number allocation – do not bypass `MediaService.AddMedia`'s `_addLock` or the unique `(AlbumId, Number)` index.
 - `AlbumService.CloseAlbum` / `OpenAlbum` – close wipes viewers and the code; open replaces the code.
-- `AlbumService.GetMediaIdsAtPositions` – resolve positions before delete; 1-based `Id` order.
-- `AlbumsForm.Action` – owner/view checks are only here for most writes.
-- `AlbumsForm.SendBatch` / `EditMedia` – flood-wait loops; do not add unbounded retries around Telegram send.
-- `AlbumsForm.OnRemoveNumbers` – `_removeSeed != 0` refreshes the random page; `OnRemoveView` must set `_removeSeed = 0`.
+- `MediaView.ShowViewPage/ClearView` – preserve view message tracking and reset `LastPageKey` when leaving a view.
+- Router registration – duplicate callback/mode/command keys throw.
+- Stats raw SQL upserts – keep tables, columns, and keys synchronized with the EF model.
+- `AlbumsForm.Action` – screens must retain server-side owner/view checks.
+- `MediaView.SendBatch` / `EditMedia` – flood-wait loops; do not add unbounded retries around Telegram send.
 - `AlbumService._failedCodes` – assuming this is durable or multi-instance-safe is wrong.
 
 ## AI modification rules
 
 - Do not add a second form type without changing `WithServiceProvider<AlbumsForm>`.
 - Do not inject `AlbumDb` into `AlbumService` or `AlbumsForm`; keep `IDbContextFactory`.
+- Keep the dependency direction `Program -> AlbumsForm(router) -> Screens -> context/UI/services`; screens never call screens.
 - Keep `Render()` empty.
 - Preserve HTML encoding (`H`) for titles; messages use `ParseMode.Html`.
 - New owner mutations must use `OwnedAlbum` (or equivalent server-side owner check). New viewer reads must use `CanView` / `ViewableAlbum`.
@@ -168,6 +191,16 @@ No test project.
 - Do not introduce EF migrations unless also replacing `EnsureCreatedAsync` (today they would not run).
 - Do not store downloaded media; `FileId` is the source of truth.
 - `nAlbum.csproj` already asks to pin floating `10.0.*` packages after a successful restore if the csproj is edited.
+
+## Known limits
+
+- Numbers have gaps after deletions by design; there is no renumbering.
+- Preview, delete mode, and view message IDs are per-session memory state. After restart, old buttons may expire or rebuild.
+- Page counts are newly displayed pages per session. A fast double click may count twice; toggles and deletion refreshes do not count.
+- Public views/pages are lifetime counters starting at the upgrade date; Albums is the current count. Per-album card rows include owners but are deleted with the album, so card sums need not match global lifetime totals.
+- Global lifetime history is seeded only for albums created, media added, and known users. `BotUsers` only knows users seen since the upgrade or identified as prior owners/access holders.
+- `MediaService`'s allocation semaphore is process-local; multiple bot instances sharing one DB are unsupported.
+- Stats aggregates are uncached `COUNT`/`SUM` queries; the menu and each card issue a small number of extra queries.
 
 ## Commands
 
@@ -183,9 +216,11 @@ No test command in-repo.
 
 ---
 
-# Source dump
+# Historical source dump — stale; do not use as the current implementation reference
 
-Full repository source (excludes `.env`, `bot_data.tgz`, `bin/`, `obj/`, this file).
+The snapshot below predates the current `Source/` structure and permanent-number/statistics changes. Treat it as archived history only; the live files listed in the repository map above are authoritative.
+
+Historical source snapshot (excludes `.env`, `bot_data.tgz`, `bin/`, `obj/`, this file).
 
 ## `nAlbum.csproj`
 
