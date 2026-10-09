@@ -15,6 +15,7 @@ public class AlbumService
     private readonly IDbContextFactory<AlbumDb> _factory;
     private readonly Dictionary<long, List<DateTime>> _failedCodes = new();
     private readonly object _lock = new();
+    private readonly SemaphoreSlim _addLock = new(1, 1);
 
     public AlbumService(IDbContextFactory<AlbumDb> factory)
     {
@@ -127,14 +128,16 @@ public class AlbumService
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.Title, title));
     }
 
-    public async Task DeleteAlbum(long albumId)
+    public async Task<int> DeleteAlbum(long albumId)
     {
         await using var db = await _factory.CreateDbContextAsync();
         await using var tx = await db.Database.BeginTransactionAsync();
-        await db.Media.Where(m => m.AlbumId == albumId).ExecuteDeleteAsync();
+        var mediaRemoved = await db.Media.Where(m => m.AlbumId == albumId).ExecuteDeleteAsync();
         await db.Access.Where(x => x.AlbumId == albumId).ExecuteDeleteAsync();
+        await db.AlbumViewStats.Where(x => x.AlbumId == albumId).ExecuteDeleteAsync();
         await db.Albums.Where(a => a.Id == albumId).ExecuteDeleteAsync();
         await tx.CommitAsync();
+        return mediaRemoved;
     }
 
     // -------------------------------------------- open / close / access
@@ -200,31 +203,41 @@ public class AlbumService
     }
 
     // ------------------------------------------------------------ media
-    /// <summary>Returns false when the same media is already in the album.</summary>
+    /// <summary>
+    /// Returns false when the same media is already in the album.
+    /// Numbers are allocated under an in-process lock: media-group items arrive concurrently (UseThreadPool) and SQLite
+    /// would otherwise fail one of two read-modify-write transactions. The app is single-process, so this is sufficient.
+    /// </summary>
     public async Task<bool> AddMedia(long albumId, MediaKind kind, string fileId, string fileUniqueId)
     {
-        await using var db = await _factory.CreateDbContextAsync();
-        if (await db.Media.AnyAsync(m => m.AlbumId == albumId && m.FileUniqueId == fileUniqueId))
-        {
-            return false;
-        }
-
-        db.Media.Add(new MediaItem
-        {
-            AlbumId = albumId,
-            Kind = kind,
-            FileId = fileId,
-            FileUniqueId = fileUniqueId
-        });
-
+        await _addLock.WaitAsync();
         try
         {
+            await using var db = await _factory.CreateDbContextAsync();
+            if (await db.Media.AnyAsync(m => m.AlbumId == albumId && m.FileUniqueId == fileUniqueId)) return false;
+
+            await using var tx = await db.Database.BeginTransactionAsync();
+            var album = await db.Albums.FirstOrDefaultAsync(a => a.Id == albumId); // tracked
+            if (album == null) return false;
+
+            var number = album.NextNumber;
+            album.NextNumber = number + 1;
+            db.Media.Add(new MediaItem
+            {
+                AlbumId = albumId, Kind = kind, FileId = fileId, FileUniqueId = fileUniqueId, Number = number
+            });
+
             await db.SaveChangesAsync();
+            await tx.CommitAsync();
             return true;
         }
         catch (DbUpdateException)
         {
-            return false; // lost a race with an identical insert
+            return false;
+        }
+        finally
+        {
+            _addLock.Release();
         }
     }
 

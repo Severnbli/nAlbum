@@ -17,12 +17,7 @@ var services = new ServiceCollection()
     .AddSingleton<AlbumService>()
     .BuildServiceProvider();
 
-// Create the schema on first start and switch SQLite to WAL.
-await using (var db = await services.GetRequiredService<IDbContextFactory<AlbumDb>>().CreateDbContextAsync())
-{
-    await db.Database.EnsureCreatedAsync();
-    await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
-}
+await SchemaUpgrader.RunAsync(services.GetRequiredService<IDbContextFactory<AlbumDb>>(), dbPath);
 
 var bot = BotBaseBuilder
     .Create()
