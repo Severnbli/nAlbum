@@ -160,7 +160,7 @@ public sealed class StatsService
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Stats: public stats failed: {ex.Message}");
+           await Console.Error.WriteLineAsync($"Stats: public stats failed: {ex.Message}");
             return null;
         }
     }
@@ -178,7 +178,7 @@ public sealed class StatsService
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Stats: album watch failed: {ex.Message}");
+           await Console.Error.WriteLineAsync($"Stats: album watch failed: {ex.Message}");
             return null;
         }
     }

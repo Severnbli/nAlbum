@@ -6,6 +6,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using TelegramBotBase.Sessions;
 
 namespace nAlbum.Bot.Screens;
 
@@ -131,23 +132,25 @@ public sealed class AddMediaScreen : Screen
 
     private async Task<bool> StillInChat(int messageId)
     {
-        // Reactions can succeed on deleted messages, so probe by copying the message and removing the copy.
-        MessageId copy;
+        // Reactions can succeed on deleted messages, so probe by forwarding the message and removing the forward.
+        Message copy;
         try
         {
-            copy = await Ctx.Device.Api(a => a.CopyMessage(
+            copy = await Ctx.Device.Dispatch(a => a.ForwardMessage(
                 Ctx.Device.DeviceId, Ctx.Device.DeviceId, messageId, disableNotification: true));
         }
         catch (ApiRequestException ex) when (ex.ErrorCode == 400)
         {
+            await Console.Error.WriteLineAsync($"Pending media {messageId} is gone: {ex.Message}");
             return false;   // the original message no longer exists
         }
-        catch (ApiRequestException)
+        catch (ApiRequestException ex)
         {
+            await Console.Error.WriteLineAsync($"Presence probe for {messageId} failed ({ex.ErrorCode}): {ex.Message}");
             return true;   // cannot tell; keep the media rather than lose it
         }
 
-        try { await Ctx.Device.Api(a => a.DeleteMessage(Ctx.Device.DeviceId, copy.Id)); }
+        try { await Ctx.Device.Dispatch(a => a.DeleteMessage(Ctx.Device.DeviceId, copy.MessageId)); }
         catch (ApiRequestException) { }
         return true;
     }
@@ -164,7 +167,7 @@ public sealed class AddMediaScreen : Screen
     {
         try
         {
-            await Ctx.Device.Api(a => a.SetMessageReaction(
+            await Ctx.Device.Dispatch(a => a.SetMessageReaction(
                 Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = emoji }]));
         }
         catch (ApiRequestException)
