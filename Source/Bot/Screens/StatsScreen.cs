@@ -36,7 +36,7 @@ public sealed class StatsScreen : Screen
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Stats read failed: {ex}");
+           await Console.Error.WriteLineAsync($"Stats read failed: {ex}");
             await Ctx.Ui.Say(Ctx.T("⚠️ Statistics are temporarily unavailable."));
         }
     }

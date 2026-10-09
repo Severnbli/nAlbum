@@ -44,7 +44,7 @@ public sealed partial class LocalizationService
                 var code = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
                 if (!CodePattern().IsMatch(code))
                 {
-                    Console.Error.WriteLine($"Locale '{path}' skipped: file name must be a language code such as 'de' or 'pt-br'.");
+                   Console.Error.WriteLine($"Locale '{path}' skipped: file name must be a language code such as 'de' or 'pt-br'.");
                     continue;
                 }
 
