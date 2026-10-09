@@ -30,7 +30,7 @@ public sealed class AddMediaScreen : Screen
                 return;
             }
 
-            await FinishAdding(m, album, fromKeyboard: true);
+            await FinishAdding(m, album);
             return;
         }
 
@@ -69,7 +69,7 @@ public sealed class AddMediaScreen : Screen
                 var album = await Ctx.Ui.OwnedAlbum(m, p);
                 if (album == null) return;
                 await m.ConfirmAction();
-                await FinishAdding(m, album, fromKeyboard: false);
+                await FinishAdding(m, album);
                 break;
             }
         }
@@ -80,7 +80,7 @@ public sealed class AddMediaScreen : Screen
         var msg = data.Message;
         if (!TryExtract(msg, out var pending))
         {
-            await HandleUnsupportedMessage(msg);
+            await TrackUserMessage(msg, IsUnsupportedMedia(msg));
             return;
         }
 
@@ -98,7 +98,7 @@ public sealed class AddMediaScreen : Screen
 
             // Telegram applies a reaction on any item of a media group to the first message of the group,
             // so react once per group.
-            if (msg.MediaGroupId == null || FirstOfGroup(msg)) await React(msg.MessageId, "👀");
+            if (msg.MediaGroupId == null || FirstOfGroup(msg)) await React(msg.MessageId, "❤️");
         }
         finally
         {
@@ -108,18 +108,20 @@ public sealed class AddMediaScreen : Screen
 
     public async Task OnIncomingMessage(Message msg)
     {
-        if (msg == null || !IsUnsupportedMedia(msg)) return;
-        await HandleUnsupportedMessage(msg);
+        if (msg == null) return;
+        await TrackUserMessage(msg, IsUnsupportedMedia(msg));
     }
 
-    private async Task HandleUnsupportedMessage(Message msg)
+    private async Task TrackUserMessage(Message msg, bool unsupported)
     {
         var add = Ctx.Session.Add;
         await add.Gate.WaitAsync();
         try
         {
-            if (Ctx.Session.Mode != Mode.Adding || !add.UnsupportedHandled.TryAdd(msg.MessageId, 0)) return;
-            await React(msg.MessageId, "👎");
+            if (Ctx.Session.Mode != Mode.Adding) return;
+            add.UserMessages.TryAdd(msg.MessageId, 0);
+            if (unsupported && add.UnsupportedHandled.TryAdd(msg.MessageId, 0))
+                await React(msg.MessageId, "👎");
         }
         finally
         {
@@ -148,7 +150,7 @@ public sealed class AddMediaScreen : Screen
         Ctx.Session.Add.KeyboardMessageId = keyboardMessage?.MessageId ?? 0;
     }
 
-    private async Task FinishAdding(MessageResult m, Album album, bool fromKeyboard)
+    private async Task FinishAdding(MessageResult m, Album album)
     {
         var add = Ctx.Session.Add;
         var shouldCommit = false;
@@ -169,8 +171,13 @@ public sealed class AddMediaScreen : Screen
             add.Gate.Release();
         }
 
-        if (fromKeyboard) await Ctx.Ui.TryDelete(m.MessageId);
-        if (shouldCommit) await Commit(album.Id);
+        if (shouldCommit)
+        {
+            await Commit(album.Id);
+            foreach (var messageId in add.UserMessages.Keys)
+                await Ctx.Ui.TryDelete(messageId);
+            add.UserMessages.Clear();
+        }
 
         var summary = shouldCommit
             ? Ctx.F(LocKey.AddSaved, add.Added)
@@ -208,13 +215,13 @@ public sealed class AddMediaScreen : Screen
         return media != null;
     }
 
-    /// <summary>Saves pending media still present in the chat. Bots get no delete events, so presence is probed.</summary>
+    /// <summary>Saves pending media that can be removed from the chat.</summary>
     private async Task Commit(long albumId)
     {
         var add = Ctx.Session.Add;
         foreach (var (messageId, media) in add.Pending.OrderBy(kv => kv.Key))
         {
-            if (!await StillInChat(messageId))
+            if (!await DeleteIfPresent(messageId))
             {
                 add.Removed++;
                 continue;
@@ -226,35 +233,34 @@ public sealed class AddMediaScreen : Screen
         add.Pending.Clear();
     }
 
-    private async Task<bool> StillInChat(int messageId)
+    private async Task<bool> DeleteIfPresent(int messageId)
     {
         try
         {
-            await Ctx.Device.Dispatch(a => a.SetMessageReaction(
-                Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = "👌" }]));
+            await Ctx.Device.Dispatch(a => a.DeleteMessage(Ctx.Device.DeviceId, messageId));
             return true;
         }
         catch (ApiRequestException ex) when (ex.ErrorCode == 400)
         {
-            if (ex.Message.Contains("message to react not found", StringComparison.OrdinalIgnoreCase)
+            if (ex.Message.Contains("message to delete not found", StringComparison.OrdinalIgnoreCase)
                 || ex.Message.Contains("message_id_invalid", StringComparison.OrdinalIgnoreCase)
                 || ex.Message.Contains("message not found", StringComparison.OrdinalIgnoreCase))
             {
-                await Console.Error.WriteLineAsync($"Pending media {messageId} is gone: {ex.Message}");
+                await Console.Error.WriteLineAsync($"Pending media {messageId} is already gone: {ex.Message}");
                 return false;
             }
 
-            await Console.Error.WriteLineAsync($"Presence probe for {messageId} failed ({ex.ErrorCode}): {ex.Message}");
+            await Console.Error.WriteLineAsync($"Deletion check for {messageId} failed ({ex.ErrorCode}): {ex.Message}");
             return true;   // cannot tell; keep the media rather than lose it
         }
         catch (ApiRequestException ex)
         {
-            await Console.Error.WriteLineAsync($"Presence probe for {messageId} failed ({ex.ErrorCode}): {ex.Message}");
+            await Console.Error.WriteLineAsync($"Deletion check for {messageId} failed ({ex.ErrorCode}): {ex.Message}");
             return true;   // cannot tell; keep the media rather than lose it
         }
         catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
         {
-            await Console.Error.WriteLineAsync($"Presence probe for {messageId} failed: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Deletion check for {messageId} failed: {ex.Message}");
             return true;   // cannot tell; keep the media rather than lose it
         }
     }

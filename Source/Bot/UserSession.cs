@@ -26,6 +26,7 @@ public sealed class AddState
     public SemaphoreSlim Gate { get; } = new(1, 1);
     public ConcurrentDictionary<int, PendingMedia> Pending { get; } = new();   // message id -> media waiting for Done
     public ConcurrentDictionary<int, byte> UnsupportedHandled { get; } = new();
+    public ConcurrentDictionary<int, byte> UserMessages { get; } = new();
 
     public void Reset()
     {
@@ -34,6 +35,7 @@ public sealed class AddState
         SeenMediaGroups.Clear();
         Pending.Clear();
         UnsupportedHandled.Clear();
+        UserMessages.Clear();
     }
 }
 
