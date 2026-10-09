@@ -43,7 +43,7 @@
     "Only photos and videos can be added. Press Done when finished.": "Only photos and videos can be added. Press Done when finished.",
     "✅ Done": "✅ Done",
     "📥 Adding to <b>{0}</b>.\nSend or forward photos and videos – as many as you like. Nothing is saved until you press <b>Done</b>; duplicates are skipped automatically.\nMedia you edit or delete before then is tracked.": "📥 Adding to <b>{0}</b>.\nSend or forward photos and videos – as many as you like. Nothing is saved until you press <b>Done</b>; duplicates are skipped automatically.\nMedia you edit or delete before then is tracked.",
-    "✅ Saved: {0} added": "✅ Saved: {0} added",
+    "✅ Saved: {0}": "✅ Saved: {0}",
     ", {0} duplicates skipped": ", {0} duplicates skipped",
     ", {0} deleted from the chat": ", {0} deleted from the chat",
     "To add media, open one of your albums and press ➕ Add media.": "To add media, open one of your albums and press ➕ Add media.",

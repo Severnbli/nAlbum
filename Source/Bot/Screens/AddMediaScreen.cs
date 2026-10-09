@@ -51,7 +51,7 @@ public sealed class AddMediaScreen : Screen
                 if (Ctx.Session.Mode == Mode.Adding && Ctx.Session.AlbumId == album.Id)
                 {
                     await Commit(album.Id);
-                    summary = Ctx.F("✅ Saved: {0} added", add.Added)
+                    summary = Ctx.F("✅ Saved: {0}", add.Added)
                               + (add.Skipped > 0 ? Ctx.F(", {0} duplicates skipped", add.Skipped) : "")
                               + (add.Removed > 0 ? Ctx.F(", {0} deleted from the chat", add.Removed) : "") + ".\n\n";
                 }

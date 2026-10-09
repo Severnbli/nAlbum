@@ -43,7 +43,7 @@
     "Only photos and videos can be added. Press Done when finished.": "Можно добавлять только фото и видео. Нажмите «Готово», когда закончите.",
     "✅ Done": "✅ Готово",
     "📥 Adding to <b>{0}</b>.\nSend or forward photos and videos – as many as you like. Nothing is saved until you press <b>Done</b>; duplicates are skipped automatically.\nMedia you edit or delete before then is tracked.": "📥 Добавление в <b>{0}</b>.\nОтправляйте или пересылайте фото и видео в любом количестве. Ничего не сохраняется, пока вы не нажмёте <b>Готово</b>; дубликаты пропускаются автоматически.\nИзменённые или удалённые до этого медиа учитываются.",
-    "✅ Saved: {0} added": "✅ Сохранено: добавлено {0}",
+    "✅ Saved: {0}": "✅ Сохранено: {0}",
     ", {0} duplicates skipped": ", дубликатов пропущено: {0}",
     ", {0} deleted from the chat": ", удалено из чата: {0}",
     "To add media, open one of your albums and press ➕ Add media.": "Чтобы добавить медиа, откройте свой альбом и нажмите ➕ Добавить медиа.",
