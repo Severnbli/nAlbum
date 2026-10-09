@@ -76,12 +76,11 @@ public sealed class StatsScreen : Screen
 
         return Ctx.F(
             LocKey.StatsReport,
-            s.Now, Text.N(s.Users), Text.N(s.ActiveUsers24h), Text.N(s.ActiveUsers7d), Text.N(s.NewUsers7d),
-            Text.N(s.Albums), Text.N(s.OpenAlbums), Text.N(s.AlbumsCreated7d), Text.N(s.Media), Text.N(s.Photos),
-            Text.N(s.Videos), Text.N(s.MediaAdded7d), s.AvgMediaPerAlbum,
-            Text.N(s.LargestAlbum), Text.N(s.ViewerGrants), Text.N(s.CodeJoins), Text.N(s.CodeFailures),
-            Text.N(s.CodeThrottled), Text.N(s.ViewsTotal + s.RandomViewsTotal), Text.N(s.ViewsTotal),
-            Text.N(s.RandomViewsTotal), Text.N(s.PagesTotal), Text.N(s.AlbumsCreatedTotal), Text.N(s.MediaAddedTotal),
+            Text.N(s.Users), Text.N(s.Albums), Text.N(s.OpenAlbums), Text.N(s.Media), Text.N(s.Photos),
+            Text.N(s.Videos), s.AvgMediaPerAlbum, Text.N(s.LargestAlbum),
+            Text.N(s.ViewerGrants), Text.N(s.CodeJoins), Text.N(s.CodeFailures), Text.N(s.CodeThrottled),
+            Text.N(s.ViewsTotal + s.RandomViewsTotal), Text.N(s.ViewsTotal), Text.N(s.RandomViewsTotal),
+            Text.N(s.PagesTotal), Text.N(s.AlbumsCreatedTotal), Text.N(s.MediaAddedTotal),
             Text.N(s.AlbumsDeletedTotal), Text.N(s.MediaDeletedTotal), Text.N(s.AlbumsOpenedTimes), top);
     }
 }
