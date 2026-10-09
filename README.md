@@ -1,4 +1,6 @@
-﻿# nAlbum
+<img width="500" height="272" alt="nAlbum_full" src="https://github.com/user-attachments/assets/56fe8808-1c8b-429c-967e-7ad4681a7363" />
+
+# nAlbum
 
 nAlbum is a Telegram bot for creating photo and video albums and sharing them with an access code. Media numbers are permanent: deleting an item does not renumber the others.
 
