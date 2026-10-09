@@ -8,7 +8,7 @@ namespace nAlbum.Data;
 /// </summary>
 public static class SchemaUpgrader
 {
-    public const int LatestVersion = 2;
+    public const int LatestVersion = 3;
 
     public static async Task RunAsync(IDbContextFactory<AlbumDb> factory, string dbPath)
     {
@@ -28,6 +28,7 @@ public static class SchemaUpgrader
         {
             await Backup(db, dbPath, version);
             if (version < 2) await UpgradeTo2(db);
+            if (version < 3) await UpgradeTo3(db);
         }
 
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
@@ -95,5 +96,12 @@ public static class SchemaUpgrader
         foreach (var sql in steps) await db.Database.ExecuteSqlRawAsync(sql);
         await db.Database.ExecuteSqlRawAsync("PRAGMA user_version = 2");
         await tx.CommitAsync();
+    }
+
+    private static async Task UpgradeTo3(AlbumDb db)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS \"UserPreferences\" (\"UserId\" INTEGER NOT NULL CONSTRAINT \"PK_UserPreferences\" PRIMARY KEY, \"LanguageCode\" TEXT NULL)");
+        await db.Database.ExecuteSqlRawAsync("PRAGMA user_version = 3");
     }
 }

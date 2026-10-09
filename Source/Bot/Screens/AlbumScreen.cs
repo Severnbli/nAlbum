@@ -24,7 +24,7 @@ public sealed class AlbumScreen : Screen
                 var title = Text.CleanTitle(text);
                 if (title.Length == 0)
                 {
-                    await Ctx.Ui.Say("Title can't be empty. Try again or /cancel.");
+                    await Ctx.Ui.Say(Ctx.T("Title can't be empty. Try again or /cancel."));
                     return;
                 }
 
@@ -32,7 +32,7 @@ public sealed class AlbumScreen : Screen
                 var album = await Ctx.Albums.CreateAlbum(Ctx.UserId, title);
                 await Ctx.Stats.IncrementAsync(StatKeys.AlbumsCreated);
                 var (card, bf) = await Ctx.Cards.Build(album);
-                await Ctx.Ui.Say("✅ Album created.\n\n" + card, bf);
+                await Ctx.Ui.Say(Ctx.T("✅ Album created.\n\n") + card, bf);
                 return;
             }
 
@@ -41,7 +41,7 @@ public sealed class AlbumScreen : Screen
                 var title = Text.CleanTitle(text);
                 if (title.Length == 0)
                 {
-                    await Ctx.Ui.Say("Title can't be empty. Try again or /cancel.");
+                    await Ctx.Ui.Say(Ctx.T("Title can't be empty. Try again or /cancel."));
                     return;
                 }
 
@@ -89,7 +89,7 @@ public sealed class AlbumScreen : Screen
                 await m.ConfirmAction();
                 Ctx.Session.Mode = Mode.Rename;
                 Ctx.Session.AlbumId = album.Id;
-                await Ctx.Ui.Say("Send the new title (or /cancel).");
+                await Ctx.Ui.Say(Ctx.T("Send the new title (or /cancel)."));
                 break;
             }
 
@@ -99,8 +99,8 @@ public sealed class AlbumScreen : Screen
                 if (album == null) return;
                 await m.ConfirmAction();
                 var bf = new ButtonForm();
-                bf.AddButtonRow(new ButtonBase("Yes, delete", $"delok:{album.Id}"), new ButtonBase("Cancel", $"al:{album.Id}"));
-                await Ctx.Ui.Show(m, $"Delete <b>{Text.H(album.Title)}</b> and all its media references? This can't be undone.", bf);
+                bf.AddButtonRow(new ButtonBase(Ctx.T("Yes, delete"), $"delok:{album.Id}"), new ButtonBase(Ctx.T("Cancel"), $"al:{album.Id}"));
+                await Ctx.Ui.Show(m, Ctx.F("Delete <b>{0}</b> and all its media references? This can't be undone.", Text.H(album.Title)), bf);
                 break;
             }
 
@@ -108,7 +108,7 @@ public sealed class AlbumScreen : Screen
             {
                 var album = await Ctx.Ui.OwnedAlbum(m, p);
                 if (album == null) return;
-                await m.ConfirmAction("Album deleted.");
+                await m.ConfirmAction(Ctx.T("Album deleted."));
                 var media = await Ctx.Albums.DeleteAlbum(album.Id);
                 await Ctx.Stats.IncrementAsync(StatKeys.AlbumsDeleted);
                 await Ctx.Stats.IncrementAsync(StatKeys.MediaDeleted, media);
@@ -121,7 +121,7 @@ public sealed class AlbumScreen : Screen
     private async Task StartNew()
     {
         Ctx.Session.Mode = Mode.NewTitle;
-        await Ctx.Ui.Say("Send the album title (or /cancel).");
+        await Ctx.Ui.Say(Ctx.T("Send the album title (or /cancel)."));
     }
 
     private async Task OnToggle(MessageResult m, string[] p)
@@ -134,13 +134,13 @@ public sealed class AlbumScreen : Screen
         {
             await Ctx.Albums.CloseAlbum(album.Id);
             await Ctx.Stats.IncrementAsync(StatKeys.AlbumsClosed);
-            await m.ConfirmAction("Album closed. Everyone else lost access.", true);
+            await m.ConfirmAction(Ctx.T("Album closed. Everyone else lost access."), true);
         }
         else
         {
             code = await Ctx.Albums.OpenAlbum(album.Id);
             await Ctx.Stats.IncrementAsync(StatKeys.AlbumsOpened);
-            await m.ConfirmAction("Album opened.");
+            await m.ConfirmAction(Ctx.T("Album opened."));
         }
 
         album = await Ctx.Albums.GetAlbum(album.Id);
@@ -149,12 +149,8 @@ public sealed class AlbumScreen : Screen
 
         if (code != null)
         {
-            await Ctx.Ui.Say(
-                $"🔓 <b>{Text.H(album.Title)}</b> is open.\n\n" +
-                $"Access code: <code>{code}</code>\n" +
-                $"Link: https://t.me/{BotInfo.Username}?start={code}\n\n" +
-                "Anyone with the code can watch the album (but not edit it). " +
-                "Closing the album invalidates the code and removes all viewers.");
+            await Ctx.Ui.Say(Ctx.F("🔓 <b>{0}</b> is open.\n\nAccess code: <code>{1}</code>\nLink: https://t.me/{2}?start={1}\n\nAnyone with the code can watch the album (but not edit it). Closing the album invalidates the code and removes all viewers.",
+                Text.H(album.Title), code, BotInfo.Username));
         }
     }
 }

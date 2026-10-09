@@ -4,6 +4,7 @@ public sealed class AppConfig
 {
     public string BotToken { get; init; }
     public string DbPath { get; init; }
+    public string LocalesDir { get; init; }
     public HashSet<long> AdminIds { get; init; } = new();
 
     public bool IsAdmin(long userId) => AdminIds.Contains(userId);
@@ -20,6 +21,8 @@ public sealed class AppConfig
             BotToken = Environment.GetEnvironmentVariable("BOT_TOKEN")
                        ?? throw new InvalidOperationException("BOT_TOKEN is not set"),
             DbPath = Environment.GetEnvironmentVariable("DB_PATH") ?? "/data/albums.db",
+            LocalesDir = Environment.GetEnvironmentVariable("LOCALES_DIR")
+                         ?? Path.Combine(AppContext.BaseDirectory, "Locales"),
             AdminIds = admins
         };
     }

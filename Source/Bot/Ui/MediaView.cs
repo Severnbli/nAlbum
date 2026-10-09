@@ -20,13 +20,13 @@ public sealed class MediaView
     /// Telegram shows an album caption under the grid only when exactly ONE item has a caption,
     /// so all numbers (in display order) go into the caption of the first item.
     /// </summary>
-    public static List<string> NumberCaptions(IReadOnlyList<int> numbers)
+    public static List<string> NumberCaptions(IReadOnlyList<int> numbers, Func<string, string> translate)
     {
         if (numbers.Count == 0) return null;
         var captions = new List<string>(new string[numbers.Count]); // all null
         captions[0] = numbers.Count == 1
             ? $"#{numbers[0]}"
-            : "Numbers in order: " + string.Join("  ", numbers.Select(n => $"#{n}"));
+            : translate("Numbers in order: ") + string.Join("  ", numbers.Select(n => $"#{n}"));
         return captions;
     }
 

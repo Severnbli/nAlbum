@@ -1,6 +1,7 @@
 using nAlbum.Bot;
 using nAlbum.Config;
 using nAlbum.Data;
+using nAlbum.Localization;
 using nAlbum.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,8 @@ var services = new ServiceCollection()
     .AddSingleton<StatsService>()
     .AddSingleton<MediaService>()
     .AddSingleton<CodeThrottle>()
+    .AddSingleton<UserPreferenceService>()
+    .AddSingleton(LocalizationService.Load(config.LocalesDir))
     .BuildServiceProvider();
 
 await SchemaUpgrader.RunAsync(services.GetRequiredService<IDbContextFactory<AlbumDb>>(), config.DbPath);
@@ -38,6 +41,7 @@ var bot = BotBaseBuilder
         a.Add("new", "Create an album");
         a.Add("join", "Open an album by code");
         a.Add("cancel", "Cancel the current action");
+        a.Add("language", "Choose bot language");
     })
     .NoSerialization()   // form state is transient; albums live in SQLite
     .DefaultLanguage()

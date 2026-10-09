@@ -1,4 +1,3 @@
-using System.Globalization;
 using nAlbum.Bot.Ui;
 using nAlbum.Services;
 using TelegramBotBase.Base;
@@ -17,7 +16,7 @@ public sealed class StatsScreen : Screen
     {
         if (!Ctx.Config.IsAdmin(Ctx.UserId))
         {
-            await m.ConfirmAction("Not allowed.", true);
+            await m.ConfirmAction(Ctx.T("Not allowed."), true);
             return;
         }
 
@@ -32,36 +31,31 @@ public sealed class StatsScreen : Screen
         {
             var stats = await Ctx.Stats.GetGlobalStatsAsync();
             var buttons = new ButtonForm();
-            buttons.AddButtonRow(new ButtonBase("🔄 Refresh", "stats"), new ButtonBase("⬅ Menu", "menu"));
+            buttons.AddButtonRow(new ButtonBase(Ctx.T("🔄 Refresh"), "stats"), new ButtonBase(Ctx.T("⬅ Menu"), "menu"));
             await Ctx.Ui.Show(m, Format(stats), buttons);
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Stats read failed: {ex}");
-            await Ctx.Ui.Say("⚠️ Statistics are temporarily unavailable.");
+            await Ctx.Ui.Say(Ctx.T("⚠️ Statistics are temporarily unavailable."));
         }
     }
 
-    private static string Format(GlobalStats s)
+    private string Format(GlobalStats s)
     {
         var top = s.Top.Count == 0
-            ? "—"
+            ? Ctx.T("—")
             : string.Join("\n", s.Top.Select((t, i) =>
-                $"{i + 1}. {Text.H(Text.Truncate(t.Title, 30))} — {Text.N(t.Views)} views · {Text.N(t.Pages)} pages"));
+                Ctx.F("{0}. {1} — {2} views · {3} pages", i + 1, Text.H(Text.Truncate(t.Title, 30)), Text.N(t.Views), Text.N(t.Pages))));
 
-        return
-            $"📊 <b>Detailed statistics</b> (admin) — {s.Now:yyyy-MM-dd HH:mm} UTC\n\n" +
-            $"👥 Users: {Text.N(s.Users)} · active 24h {Text.N(s.ActiveUsers24h)} · 7d {Text.N(s.ActiveUsers7d)} · new 7d {Text.N(s.NewUsers7d)}\n" +
-            $"📁 Albums: {Text.N(s.Albums)} (open {Text.N(s.OpenAlbums)}) · created 7d {Text.N(s.AlbumsCreated7d)}\n" +
-            $"🖼 Media: {Text.N(s.Media)} (photos {Text.N(s.Photos)} · videos {Text.N(s.Videos)}) · added 7d {Text.N(s.MediaAdded7d)}\n" +
-            $"   avg per album {s.AvgMediaPerAlbum.ToString("F1", CultureInfo.InvariantCulture)} · largest {Text.N(s.LargestAlbum)}\n" +
-            $"🔑 Viewer grants: {Text.N(s.ViewerGrants)} · code joins {Text.N(s.CodeJoins)} · wrong codes {Text.N(s.CodeFailures)} · throttled {Text.N(s.CodeThrottled)}\n\n" +
-            $"👀 Views (lifetime): {Text.N(s.ViewsTotal + s.RandomViewsTotal)} (ordered {Text.N(s.ViewsTotal)} · random {Text.N(s.RandomViewsTotal)})\n" +
-            $"📄 Pages watched (lifetime): {Text.N(s.PagesTotal)}\n" +
-            $"➕ Created/added (lifetime): albums {Text.N(s.AlbumsCreatedTotal)} · media {Text.N(s.MediaAddedTotal)}\n" +
-            $"🗑 Deleted (lifetime): albums {Text.N(s.AlbumsDeletedTotal)} · media {Text.N(s.MediaDeletedTotal)}\n" +
-            $"🔓 Albums opened for others: {Text.N(s.AlbumsOpenedTimes)} times\n\n" +
-            $"🏆 Most watched:\n{top}\n\n" +
-            "<i>Lifetime counters start at the upgrade date; earlier history is seeded only for created albums and added media.</i>";
+        return Ctx.F(
+            "📊 <b>Detailed statistics</b> (admin) — {0:yyyy-MM-dd HH:mm} UTC\n\n👥 Users: {1} · active 24h {2} · 7d {3} · new 7d {4}\n📁 Albums: {5} (open {6}) · created 7d {7}\n🖼 Media: {8} (photos {9} · videos {10}) · added 7d {11}\n   avg per album {12:F1} · largest {13}\n🔑 Viewer grants: {14} · code joins {15} · wrong codes {16} · throttled {17}\n\n👀 Views (lifetime): {18} (ordered {19} · random {20})\n📄 Pages watched (lifetime): {21}\n➕ Created/added (lifetime): albums {22} · media {23}\n🗑 Deleted (lifetime): albums {24} · media {25}\n🔓 Albums opened for others: {26} times\n\n🏆 Most watched:\n{27}\n\n<i>Lifetime counters start at the upgrade date; earlier history is seeded only for created albums and added media.</i>",
+            s.Now, Text.N(s.Users), Text.N(s.ActiveUsers24h), Text.N(s.ActiveUsers7d), Text.N(s.NewUsers7d),
+            Text.N(s.Albums), Text.N(s.OpenAlbums), Text.N(s.AlbumsCreated7d), Text.N(s.Media), Text.N(s.Photos),
+            Text.N(s.Videos), Text.N(s.MediaAdded7d), s.AvgMediaPerAlbum,
+            Text.N(s.LargestAlbum), Text.N(s.ViewerGrants), Text.N(s.CodeJoins), Text.N(s.CodeFailures),
+            Text.N(s.CodeThrottled), Text.N(s.ViewsTotal + s.RandomViewsTotal), Text.N(s.ViewsTotal),
+            Text.N(s.RandomViewsTotal), Text.N(s.PagesTotal), Text.N(s.AlbumsCreatedTotal), Text.N(s.MediaAddedTotal),
+            Text.N(s.AlbumsDeletedTotal), Text.N(s.MediaDeletedTotal), Text.N(s.AlbumsOpenedTimes), top);
     }
 }

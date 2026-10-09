@@ -54,6 +54,12 @@ public class BotUser
     public DateTime LastSeenAt { get; set; }
 }
 
+public class UserPreference
+{
+    public long UserId { get; set; }
+    public string LanguageCode { get; set; }
+}
+
 /// <summary>Per album and user watch counters. Deleted with the album.</summary>
 public class AlbumViewStat
 {

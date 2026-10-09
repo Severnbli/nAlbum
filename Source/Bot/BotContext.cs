@@ -1,5 +1,6 @@
 using nAlbum.Bot.Ui;
 using nAlbum.Config;
+using nAlbum.Localization;
 using nAlbum.Services;
 using TelegramBotBase.Form;
 using TelegramBotBase.Interfaces;
@@ -11,10 +12,13 @@ public sealed class BotContext
     private readonly FormBase _form;
 
     public BotContext(FormBase form, AppConfig config, AlbumService albums, MediaService media,
-                      CodeThrottle throttle, StatsService stats)
-    {
-        _form = form;
-        Config = config; Albums = albums; Media = media; Throttle = throttle; Stats = stats;
+                      CodeThrottle throttle, StatsService stats, UserPreferenceService preferences,
+                                            LocalizationService localization)
+                          {
+                              _form = form;
+                              Config = config; Albums = albums; Media = media; Throttle = throttle; Stats = stats; Preferences = preferences;
+                              Localization = localization;
+                              Language = LocalizationService.DefaultCode;
         Session = new UserSession();
         Ui = new BotUi(this);
         View = new MediaView(this);
@@ -30,8 +34,14 @@ public sealed class BotContext
     public MediaService Media { get; }
     public CodeThrottle Throttle { get; }
     public StatsService Stats { get; }
+    public UserPreferenceService Preferences { get; }
+    public LocalizationService Localization { get; }
+    public string Language { get; set; }               // language code, e.g. "en"
     public UserSession Session { get; }
     public BotUi Ui { get; }
     public MediaView View { get; }
     public AlbumCard Cards { get; }
+
+    public string T(string text) => Localization.T(Language, text);
+    public string F(string format, params object[] args) => Localization.F(Language, format, args);
 }

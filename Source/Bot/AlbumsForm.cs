@@ -1,4 +1,5 @@
 using nAlbum.Bot.Screens;
+using nAlbum.Localization;
 using nAlbum.Config;
 using nAlbum.Services;
 using Telegram.Bot.Exceptions;
@@ -20,9 +21,10 @@ public class AlbumsForm : FormBase
     private readonly Dictionary<Mode, Screen> _byMode = new();
     private readonly Dictionary<string, Screen> _byCommand = new();
 
-    public AlbumsForm(AppConfig config, AlbumService albums, MediaService media, CodeThrottle throttle, StatsService stats)
+    public AlbumsForm(AppConfig config, AlbumService albums, MediaService media, CodeThrottle throttle,
+                      StatsService stats, UserPreferenceService preferences, LocalizationService localization)
     {
-        _ctx = new BotContext(this, config, albums, media, throttle, stats);
+        _ctx = new BotContext(this, config, albums, media, throttle, stats, preferences, localization);
         _menu = new MenuScreen(_ctx);
         _join = new JoinScreen(_ctx);
         _add = new AddMediaScreen(_ctx);
@@ -44,7 +46,12 @@ public class AlbumsForm : FormBase
 
     public override async Task PreLoad(MessageResult message)
     {
-        if (_ctx.IsPrivate) await _ctx.Stats.TouchUserAsync(_ctx.UserId);
+        if (!_ctx.IsPrivate) return;
+        await _ctx.Stats.TouchUserAsync(_ctx.UserId);
+        var telegramLanguage = message.UpdateData.Message?.From?.LanguageCode
+                               ?? message.UpdateData.CallbackQuery?.From?.LanguageCode;
+        var preference = await _ctx.Preferences.GetLanguageAsync(_ctx.UserId);
+        _ctx.Language = _ctx.Localization.Resolve(preference, telegramLanguage);
     }
 
     public override async Task Load(MessageResult message)
@@ -90,7 +97,7 @@ public class AlbumsForm : FormBase
         catch (Exception ex) when (ex is not ApiRequestException)
         {
             await Console.Error.WriteLineAsync($"Action '{data}' failed: {ex}");
-            await _ctx.Ui.Say("⚠️ Something went wrong. Please try again.");
+            await _ctx.Ui.Say(_ctx.T("⚠️ Something went wrong. Please try again."));
         }
     }
 }
