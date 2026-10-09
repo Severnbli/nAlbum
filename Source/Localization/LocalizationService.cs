@@ -16,7 +16,8 @@ public sealed class LanguageInfo
 
 /// <summary>
 /// Loads every Locales/*.json file at startup. A file name is the language code (ru.json -> "ru").
-/// Keys are the English texts used in code; a missing key falls back to the English text.
+/// Keys are the PascalCase constants of <see cref="LocKey"/>. A missing or empty translation falls back to
+/// English (en.json), and a key missing everywhere is returned as is.
 /// </summary>
 public sealed partial class LocalizationService
 {
@@ -79,6 +80,7 @@ public sealed partial class LocalizationService
             };
         }
 
+        Validate(languages);
         Console.WriteLine($"Languages loaded: {string.Join(", ", languages.Keys.Order())}");
         return new LocalizationService(languages);
     }
@@ -96,25 +98,50 @@ public sealed partial class LocalizationService
         return _languages.ContainsKey(primary) ? primary : DefaultCode;
     }
 
-    public string T(string code, string text) =>
-        code != null && _languages.TryGetValue(code, out var l) && l.Translations.TryGetValue(text, out var value)
-        && !string.IsNullOrEmpty(value)
-            ? value
-            : text;
+    private static void Validate(Dictionary<string, LanguageInfo> languages)
+    {
+        var known = typeof(LocKey).GetFields().Select(f => (string)f.GetRawConstantValue()).ToHashSet();
+        foreach (var language in languages.Values)
+        {
+            var unknown = language.Translations.Keys.Where(k => !known.Contains(k)).ToList();
+            if (unknown.Count > 0)
+                Console.Error.WriteLine($"Locale '{language.Code}': unknown keys ignored: {string.Join(", ", unknown)}");
 
-    public string F(string code, string format, params object[] args)
+            if (language.Code == DefaultCode) continue;
+            var missing = known.Count(k => !language.Translations.TryGetValue(k, out var v) || string.IsNullOrEmpty(v));
+            if (missing > 0)
+                Console.WriteLine($"Locale '{language.Code}': {missing} key(s) not translated, English is used instead.");
+        }
+
+        var missingEnglish = known.Where(k => !languages[DefaultCode].Translations.ContainsKey(k)).ToList();
+        if (missingEnglish.Count > 0)
+            Console.Error.WriteLine($"Locale '{DefaultCode}' is missing keys: {string.Join(", ", missingEnglish)}");
+    }
+
+    public string T(string code, string key)
+    {
+        if (Lookup(code, key) is { } value) return value;
+        return Lookup(DefaultCode, key) ?? key;
+    }
+
+    public string F(string code, string key, params object[] args)
     {
         try
         {
-            return string.Format(CultureInfo.InvariantCulture, T(code, format), args);
+            return string.Format(CultureInfo.InvariantCulture, T(code, key), args);
         }
         catch (FormatException)
         {
             // a broken translation must not break the bot: use the English text
-            return string.Format(CultureInfo.InvariantCulture, format, args);
+            return string.Format(CultureInfo.InvariantCulture, Lookup(DefaultCode, key) ?? key, args);
         }
     }
 
+    private string Lookup(string code, string key) =>
+        code != null && _languages.TryGetValue(code, out var l)
+        && l.Translations.TryGetValue(key, out var value) && !string.IsNullOrEmpty(value)
+            ? value
+            : null;
     private sealed class LocaleFile
     {
         public string Name { get; set; }
