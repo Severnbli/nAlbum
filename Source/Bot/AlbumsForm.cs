@@ -81,7 +81,7 @@ public class AlbumsForm : FormBase
         }
         catch (Exception ex) when (ex is not ApiRequestException)
         {
-            Console.Error.WriteLine($"Action '{data}' failed: {ex}");
+            await Console.Error.WriteLineAsync($"Action '{data}' failed: {ex}");
             await _ctx.Ui.Say("⚠️ Something went wrong. Please try again.");
         }
     }
