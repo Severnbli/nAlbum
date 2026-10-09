@@ -6,7 +6,7 @@ nAlbum is a Telegram bot for creating photo and video albums and sharing them wi
 
 - Create, rename, and delete albums.
 - Use the bot in English, Russian, or Belarusian, with automatic Telegram-language detection or a saved manual choice.
-- Add photos and videos; media is saved when you press Done. Items edited or deleted in the chat before that are tracked, and duplicates in an album are skipped.
+- Add photos and videos;
 - View albums in order or shuffled, with optional permanent-number captions.
 - Share albums with a code or private link; revoke access by closing the album.
 - Remove items by number with a preview, or directly from a view.
