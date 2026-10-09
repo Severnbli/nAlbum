@@ -184,7 +184,14 @@ public sealed class AddMediaScreen : Screen
               + (add.Skipped > 0 ? Ctx.F(LocKey.AddDuplicatesSkipped, add.Skipped) : "")
               + (add.Removed > 0 ? Ctx.F(LocKey.AddDeletedFromChat, add.Removed) : "") + ".\n\n"
             : "";
-        var (card, bf) = await Ctx.Cards.Build(album);
+        var cardAlbum = shouldCommit ? await Ctx.Albums.GetAlbum(album.Id) : album;
+        if (cardAlbum == null)
+        {
+            if (summary.Length > 0) await Ctx.Ui.Say(summary);
+            return;
+        }
+
+        var (card, bf) = await Ctx.Cards.Build(cardAlbum);
         await Ctx.Ui.Say(summary + card, bf);
     }
 
