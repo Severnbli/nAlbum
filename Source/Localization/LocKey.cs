@@ -9,7 +9,8 @@ public static class LocKey
     public const string MenuSharedWithMe = nameof(MenuSharedWithMe);
     public const string MenuDetailedStatistics = nameof(MenuDetailedStatistics);
     public const string MenuLanguage = nameof(MenuLanguage);
-    public const string MenuPublicStats = nameof(MenuPublicStats);
+    public const string MenuGlobalStatistics = nameof(MenuGlobalStatistics);
+    public const string GlobalStatsReport = nameof(GlobalStatsReport);
     public const string LanguageAutoDetect = nameof(LanguageAutoDetect);
     public const string LanguageChoose = nameof(LanguageChoose);
     public const string LanguageUpdated = nameof(LanguageUpdated);

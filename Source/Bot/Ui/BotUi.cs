@@ -95,8 +95,9 @@ public sealed class BotUi
         bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
         bf.AddButtonRow(Ctx.T(LocKey.MenuMyAlbums), "mine:0");
         bf.AddButtonRow(Ctx.T(LocKey.MenuSharedWithMe), "shared:0");
-        bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuGlobalStatistics), "gstats");
         if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuDetailedStatistics), "stats");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
         return bf;
     }
 

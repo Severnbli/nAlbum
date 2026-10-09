@@ -12,14 +12,7 @@ public sealed class MenuScreen : Screen
     public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "mine", "shared", "language", "lang" };
     public override IReadOnlyCollection<string> Commands => new[] { "/cancel", "/menu", "/albums", "/language" };
 
-    public async Task<string> WelcomeTextAsync()
-    {
-        var s = await Ctx.Stats.GetPublicStatsAsync();
-        var welcome = Ctx.T(LocKey.MenuWelcome);
-        return s == null
-            ? welcome
-            : $"{welcome}\n\n{Ctx.F(LocKey.MenuPublicStats, Text.N(s.Albums), Text.N(s.Views), Text.N(s.Pages))}";
-    }
+    public Task<string> WelcomeTextAsync() => Task.FromResult(Ctx.T(LocKey.MenuWelcome));
 
     public async Task ShowWelcome() => await Ctx.Ui.Say(await WelcomeTextAsync(), Ctx.Ui.MenuButtons());
 

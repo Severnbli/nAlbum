@@ -22,9 +22,8 @@ public static class StatKeys
 
 public sealed class PublicStats
 {
-    public int Albums;
-    public long Views;
-    public long Pages;
+    public int Users, Albums, Media;
+    public long Views, Pages;
 }
 
 public sealed class AlbumWatch
@@ -146,14 +145,16 @@ public sealed class StatsService
         try
         {
             await using var db = await _factory.CreateDbContextAsync();
-            var albums = await db.Albums.CountAsync();
             var keys = new[] { StatKeys.ViewsTotal, StatKeys.RandomViewsTotal, StatKeys.PagesTotal };
             var counters = await db.Counters.AsNoTracking()
                 .Where(x => keys.Contains(x.Name)).ToDictionaryAsync(x => x.Name, x => x.Value);
             long Count(string key) => counters.TryGetValue(key, out var value) ? value : 0;
+
             return new PublicStats
             {
-                Albums = albums,
+                Users = await db.BotUsers.CountAsync(),
+                Albums = await db.Albums.CountAsync(),
+                Media = await db.Media.CountAsync(),
                 Views = Count(StatKeys.ViewsTotal) + Count(StatKeys.RandomViewsTotal),
                 Pages = Count(StatKeys.PagesTotal)
             };

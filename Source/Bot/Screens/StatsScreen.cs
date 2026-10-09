@@ -11,10 +11,17 @@ public sealed class StatsScreen : Screen
 {
     public StatsScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "stats" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "stats", "gstats" };
 
     public override async Task OnCallback(MessageResult m, string[] p)
     {
+        if (p[0] == "gstats")
+        {
+            await m.ConfirmAction();
+            await ShowPublic(m);
+            return;
+        }
+
         if (!Ctx.Config.IsAdmin(Ctx.UserId))
         {
             await m.ConfirmAction(Ctx.T(LocKey.StatsNotAllowed), true);
@@ -23,6 +30,24 @@ public sealed class StatsScreen : Screen
 
         await m.ConfirmAction();
         await ShowGlobal(m);
+    }
+
+    /// <summary>Aggregate statistics for every user; contains no personal data.</summary>
+    private async Task ShowPublic(MessageResult m)
+    {
+        var s = await Ctx.Stats.GetPublicStatsAsync();
+        var buttons = new ButtonForm();
+        buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonRefresh), "gstats"), new ButtonBase(Ctx.T(LocKey.ButtonMenu), "menu"));
+        if (s == null)
+        {
+            await Ctx.Ui.Show(m, Ctx.T(LocKey.StatsUnavailable), buttons);
+            return;
+        }
+
+        var text = Ctx.F(
+            LocKey.GlobalStatsReport,
+            Text.N(s.Users), Text.N(s.Albums), Text.N(s.Media), Text.N(s.Views), Text.N(s.Pages));
+        await Ctx.Ui.Show(m, text, buttons);
     }
 
     /// <summary>Called by the admin-only callback and /stats command.</summary>
