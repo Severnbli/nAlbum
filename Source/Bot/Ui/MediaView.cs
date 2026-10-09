@@ -5,6 +5,7 @@ using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using TelegramBotBase.Form;
 using TelegramBotBase.Sessions;
+using nAlbum.Localization;
 
 namespace nAlbum.Bot.Ui;
 
@@ -26,7 +27,7 @@ public sealed class MediaView
         var captions = new List<string>(new string[numbers.Count]); // all null
         captions[0] = numbers.Count == 1
             ? $"#{numbers[0]}"
-            : translate("Numbers in order: ") + string.Join("  ", numbers.Select(n => $"#{n}"));
+            : translate(LocKey.ViewNumbersCaption) + string.Join("  ", numbers.Select(n => $"#{n}"));
         return captions;
     }
 

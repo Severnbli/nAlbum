@@ -1,4 +1,4 @@
-﻿using nAlbum.Bot.Ui;
+using nAlbum.Bot.Ui;
 using nAlbum.Data;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -7,6 +7,7 @@ using Telegram.Bot.Types.Enums;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
 using TelegramBotBase.Sessions;
+using nAlbum.Localization;
 
 namespace nAlbum.Bot.Screens;
 
@@ -19,7 +20,7 @@ public sealed class AddMediaScreen : Screen
 
     public override async Task OnText(MessageResult m, string text)
     {
-        await Ctx.Ui.Say(Ctx.T("Only photos and videos can be added. Press Done when finished."));
+        await Ctx.Ui.Say(Ctx.T(LocKey.AddOnlyMedia));
     }
 
     public override async Task OnCallback(MessageResult m, string[] p)
@@ -35,8 +36,8 @@ public sealed class AddMediaScreen : Screen
                 Ctx.Session.AlbumId = album.Id;
                 Ctx.Session.Add.Reset();
                 var bf = new ButtonForm();
-                bf.AddButtonRow(Ctx.T("✅ Done"), $"done:{album.Id}");
-                await Ctx.Ui.Say(Ctx.F("📥 Adding to <b>{0}</b>.\nSend or forward photos and videos – as many as you like. Nothing is saved until you press <b>Done</b>; duplicates are skipped automatically.\nMedia you edit or delete before then is tracked.", Text.H(album.Title)), bf);
+                bf.AddButtonRow(Ctx.T(LocKey.ButtonDone), $"done:{album.Id}");
+                await Ctx.Ui.Say(Ctx.F(LocKey.AddPrompt, Text.H(album.Title)), bf);
                 break;
             }
 
@@ -51,9 +52,9 @@ public sealed class AddMediaScreen : Screen
                 if (Ctx.Session.Mode == Mode.Adding && Ctx.Session.AlbumId == album.Id)
                 {
                     await Commit(album.Id);
-                    summary = Ctx.F("✅ Saved: {0}", add.Added)
-                              + (add.Skipped > 0 ? Ctx.F(", {0} duplicates skipped", add.Skipped) : "")
-                              + (add.Removed > 0 ? Ctx.F(", {0} deleted from the chat", add.Removed) : "") + ".\n\n";
+                    summary = Ctx.F(LocKey.AddSaved, add.Added)
+                              + (add.Skipped > 0 ? Ctx.F(LocKey.AddDuplicatesSkipped, add.Skipped) : "")
+                              + (add.Removed > 0 ? Ctx.F(LocKey.AddDeletedFromChat, add.Removed) : "") + ".\n\n";
                 }
                 Ctx.Session.Mode = Mode.Idle;
                 var (card, bf) = await Ctx.Cards.Build(album);
@@ -68,13 +69,13 @@ public sealed class AddMediaScreen : Screen
         var msg = data.Message;
         if (!TryExtract(msg, out var pending))
         {
-            if (Ctx.Session.Mode == Mode.Adding) await Ctx.Ui.Say(Ctx.T("Only photos and videos can be added. Press Done when finished."));
+            if (Ctx.Session.Mode == Mode.Adding) await Ctx.Ui.Say(Ctx.T(LocKey.AddOnlyMedia));
             return;
         }
 
         if (Ctx.Session.Mode != Mode.Adding)
         {
-            if (FirstOfGroup(msg)) await Ctx.Ui.Say(Ctx.T("To add media, open one of your albums and press ➕ Add media."), Ctx.Ui.MenuButtons());
+            if (FirstOfGroup(msg)) await Ctx.Ui.Say(Ctx.T(LocKey.AddHintOpenAlbum), Ctx.Ui.MenuButtons());
             return;
         }
 

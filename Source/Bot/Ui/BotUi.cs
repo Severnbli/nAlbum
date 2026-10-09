@@ -4,6 +4,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using nAlbum.Localization;
 
 namespace nAlbum.Bot.Ui;
 
@@ -78,11 +79,11 @@ public sealed class BotUi
     public ButtonForm MenuButtons()
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T("➕ New album"), "new");
-        bf.AddButtonRow(Ctx.T("📁 My albums"), "mine:0");
-        bf.AddButtonRow(Ctx.T("📥 Shared with me"), "shared:0");
-        bf.AddButtonRow(Ctx.T("🌐 Language"), "language");
-        if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T("📊 Detailed statistics"), "stats");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuMyAlbums), "mine:0");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuSharedWithMe), "shared:0");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
+        if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuDetailedStatistics), "stats");
         return bf;
     }
 
@@ -101,10 +102,10 @@ public sealed class BotUi
                 : await Ctx.Albums.ListShared(Ctx.UserId, page * ListPage, ListPage);
         }
 
-        var text = kind == "mine" ? Ctx.T("📁 <b>My albums</b>") : Ctx.T("📥 <b>Shared with me</b>");
+        var text = kind == "mine" ? Ctx.T(LocKey.ListMineTitle) : Ctx.T(LocKey.ListSharedTitle);
         if (total == 0)
         {
-            text += Ctx.T("\n\nNothing here yet.") + (kind == "shared" ? Ctx.T(" Send me an access code to get started.") : "");
+            text += Ctx.T(LocKey.ListEmpty) + (kind == "shared" ? Ctx.T(LocKey.ListSharedEmptyHint) : "");
         }
 
         var bf = new ButtonForm();
@@ -118,8 +119,8 @@ public sealed class BotUi
         if (page > 0) nav.Add(new ButtonBase("◀", $"{kind}:{page - 1}"));
         if ((page + 1) * ListPage < total) nav.Add(new ButtonBase("▶", $"{kind}:{page + 1}"));
         if (nav.Count > 0) bf.AddButtonRow(nav.ToArray());
-        if (kind == "mine") bf.AddButtonRow(Ctx.T("➕ New album"), "new");
-        bf.AddButtonRow(Ctx.T("⬅ Menu"), "menu");
+        if (kind == "mine") bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
 
         await Show(m, text, bf);
     }
@@ -128,7 +129,7 @@ public sealed class BotUi
     {
         var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
         if (album != null && album.OwnerId == Ctx.UserId) return album;
-        await m.ConfirmAction(Ctx.T("Album not found or you are not its owner."), true);
+        await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumNotOwned), true);
         return null;
     }
 
@@ -136,7 +137,7 @@ public sealed class BotUi
     {
         var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
         if (album != null && await Ctx.Albums.CanView(album, Ctx.UserId)) return album;
-        await m.ConfirmAction(Ctx.T("This album is unavailable."), true);
+        await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumUnavailable), true);
         return null;
     }
 }

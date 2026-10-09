@@ -1,16 +1,12 @@
 using nAlbum.Bot.Ui;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using nAlbum.Localization;
 
 namespace nAlbum.Bot.Screens;
 
 public sealed class MenuScreen : Screen
 {
-    private const string Welcome =
-        "👋 <b>Albums bot</b>\n\n" +
-        "Create albums of photos and videos and share them with a secret code.\n" +
-        "Got a code from a friend? Just send it to me.";
-
     public MenuScreen(BotContext ctx) : base(ctx) { }
 
     public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "mine", "shared", "language", "lang" };
@@ -19,10 +15,10 @@ public sealed class MenuScreen : Screen
     public async Task<string> WelcomeTextAsync()
     {
         var s = await Ctx.Stats.GetPublicStatsAsync();
-        var welcome = Ctx.T(Welcome);
+        var welcome = Ctx.T(LocKey.MenuWelcome);
         return s == null
             ? welcome
-            : $"{welcome}\n\n{Ctx.F("📊 Albums: {0} · 👀 Views: {1} · 📄 Pages watched: {2}", Text.N(s.Albums), Text.N(s.Views), Text.N(s.Pages))}";
+            : $"{welcome}\n\n{Ctx.F(LocKey.MenuPublicStats, Text.N(s.Albums), Text.N(s.Views), Text.N(s.Pages))}";
     }
 
     public async Task ShowWelcome() => await Ctx.Ui.Say(await WelcomeTextAsync(), Ctx.Ui.MenuButtons());
@@ -31,7 +27,7 @@ public sealed class MenuScreen : Screen
     {
         if (command == "/cancel")
         {
-            await Ctx.Ui.Say(Ctx.T("Cancelled."), Ctx.Ui.MenuButtons());
+            await Ctx.Ui.Say(Ctx.T(LocKey.Cancelled), Ctx.Ui.MenuButtons());
             return;
         }
 
@@ -80,7 +76,7 @@ public sealed class MenuScreen : Screen
 
     private async Task ShowLanguage(MessageResult m)
     {
-        await Ctx.Ui.Show(m, Ctx.T("Choose your language:"), LanguageButtons());
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.LanguageChoose), LanguageButtons());
     }
 
     private async Task SetLanguage(MessageResult m, string[] p)
@@ -98,8 +94,8 @@ public sealed class MenuScreen : Screen
             ? Ctx.Localization.Detect(m.UpdateData.CallbackQuery?.From?.LanguageCode)
             : code;
         await m.ConfirmAction();
-        var note = code == "auto" ? Ctx.T("Automatic language detection is enabled.") : Ctx.T("Language updated.");
-        await Ctx.Ui.Show(m, $"{note}\n\n{Ctx.T("Choose your language:")}", LanguageButtons());
+        var note = code == "auto" ? Ctx.T(LocKey.LanguageAutoEnabled) : Ctx.T(LocKey.LanguageUpdated);
+        await Ctx.Ui.Show(m, $"{note}\n\n{Ctx.T(LocKey.LanguageChoose)}", LanguageButtons());
     }
 
     private ButtonForm LanguageButtons()
@@ -107,8 +103,8 @@ public sealed class MenuScreen : Screen
         var buttons = new ButtonForm();
         foreach (var language in Ctx.Localization.Languages)
             buttons.AddButtonRow(new ButtonBase(language.Label, $"lang:{language.Code}"));
-        buttons.AddButtonRow(new ButtonBase(Ctx.T("🌐 Auto-detect"), "lang:auto"));
-        buttons.AddButtonRow(new ButtonBase(Ctx.T("⬅ Menu"), "menu"));
+        buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.LanguageAutoDetect), "lang:auto"));
+        buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonMenu), "menu"));
         return buttons;
     }
 }

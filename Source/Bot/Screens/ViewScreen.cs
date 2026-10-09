@@ -2,6 +2,7 @@ using nAlbum.Bot.Ui;
 using nAlbum.Data;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using nAlbum.Localization;
 
 namespace nAlbum.Bot.Screens;
 
@@ -45,7 +46,7 @@ public sealed class ViewScreen : Screen
         var total = await Ctx.Media.MediaCount(album.Id);
         if (total == 0)
         {
-            await m.ConfirmAction(Ctx.T("This album is empty."), true);
+            await m.ConfirmAction(Ctx.T(LocKey.ViewEmpty), true);
             return;
         }
         if (offset >= total) offset = (total - 1) / ViewPage * ViewPage;
@@ -85,7 +86,7 @@ public sealed class ViewScreen : Screen
             Ctx.Session.Mode = Mode.Idle;
             Ctx.Session.View.DeleteSeed = 0;
             var (card, cardButtons) = await Ctx.Cards.Build(album);
-            await Ctx.Ui.Say(Ctx.T("✅ The album is now empty.\n\n") + card, cardButtons);
+            await Ctx.Ui.Say(Ctx.T(LocKey.ViewNowEmpty) + card, cardButtons);
             return;
         }
 
@@ -104,7 +105,7 @@ public sealed class ViewScreen : Screen
         await Ctx.View.ShowViewPage(
             clickedMessageId,
             items,
-            failed => text + (failed > 0 ? "\n" + Ctx.F("⚠️ {0} item(s) could not be sent.", failed) : ""),
+            failed => text + (failed > 0 ? "\n" + Ctx.F(LocKey.ViewItemsFailed, failed) : ""),
             nav,
             captions);
     }
@@ -116,38 +117,38 @@ public sealed class ViewScreen : Screen
         var numbers = (flags & 1) != 0;
 
         var text = seed == 0
-            ? Ctx.F("<b>{0}</b>: items {1}–{2} of {3}", Text.H(album.Title), offset + 1, offset + count, total)
-            : Ctx.F("🎲 <b>{0}</b>: random {1}–{2} of {3}", Text.H(album.Title), offset + 1, offset + count, total);
-        if (numbers) text += Ctx.T("\nThe numbers under the pictures are listed in the same order as the pictures (left to right, top to bottom). Numbers never change.");
-        if (deleting) text += Ctx.T("\n🗑 Type the number(s) to delete, e.g. <code>12</code>, <code>12 15 18</code> or <code>12-15</code>.");
+            ? Ctx.F(LocKey.ViewPageOrdered, Text.H(album.Title), offset + 1, offset + count, total)
+            : Ctx.F(LocKey.ViewPageRandom, Text.H(album.Title), offset + 1, offset + count, total);
+        if (numbers) text += Ctx.T(LocKey.ViewNumbersHint);
+        if (deleting) text += Ctx.T(LocKey.ViewDeleteHint);
         if (note != null) text = note + "\n\n" + text;
 
         var bf = new ButtonForm();
         var row = new List<ButtonBase>();
         if (offset > 0)
-            row.Add(new ButtonBase(Ctx.T("◀ Prev"), PageCb(album, seed, Math.Max(offset - ViewPage, 0), flags)));
+            row.Add(new ButtonBase(Ctx.T(LocKey.ButtonPrev), PageCb(album, seed, Math.Max(offset - ViewPage, 0), flags)));
         if (offset + ViewPage < total)
-            row.Add(new ButtonBase(Ctx.T("Next ▶"), PageCb(album, seed, offset + ViewPage, flags)));
+            row.Add(new ButtonBase(Ctx.T(LocKey.ButtonNext), PageCb(album, seed, offset + ViewPage, flags)));
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
 
         if (deleting)
         {
-            bf.AddButtonRow(Ctx.T("✅ Done deleting"), PageCb(album, seed, offset, 1));
+            bf.AddButtonRow(Ctx.T(LocKey.ButtonDoneDeleting), PageCb(album, seed, offset, 1));
         }
         else
         {
             var toggle = numbers
-                ? new ButtonBase(Ctx.T("🔢 Hide numbers"), PageCb(album, seed, offset, flags & ~1))
-                : new ButtonBase(Ctx.T("🔢 Show numbers"), PageCb(album, seed, offset, flags | 1));
+                ? new ButtonBase(Ctx.T(LocKey.ButtonHideNumbers), PageCb(album, seed, offset, flags & ~1))
+                : new ButtonBase(Ctx.T(LocKey.ButtonShowNumbers), PageCb(album, seed, offset, flags | 1));
             var buttons = new List<ButtonBase> { toggle };
             if (album.OwnerId == Ctx.UserId)
-                buttons.Add(new ButtonBase(Ctx.T("🗑 Delete by number"), PageCb(album, seed, offset, 3)));
+                buttons.Add(new ButtonBase(Ctx.T(LocKey.ButtonDeleteByNumber), PageCb(album, seed, offset, 3)));
             bf.AddButtonRow(buttons.ToArray());
         }
 
         bf.AddButtonRow(
-            new ButtonBase(Ctx.T(seed == 0 ? "🎲 Random" : "🎲 Reshuffle"), $"rnd:{album.Id}"),
-            new ButtonBase(Ctx.T("⬅ Back"), $"al:{album.Id}"));
+            new ButtonBase(Ctx.T(seed == 0 ? LocKey.ButtonRandom : LocKey.ButtonReshuffle), $"rnd:{album.Id}"),
+            new ButtonBase(Ctx.T(LocKey.ButtonBack), $"al:{album.Id}"));
         return (text, bf);
     }
 
@@ -170,20 +171,20 @@ public sealed class ViewScreen : Screen
 
         if (numbers == null || numbers.Count == 0)
         {
-            note = Ctx.T("⚠️ I couldn't read that.");
+            note = Ctx.T(LocKey.ViewUnreadable);
         }
         else
         {
             var found = await Ctx.Media.ResolveNumbers(album.Id, numbers);
             if (found.Count == 0)
             {
-                note = Ctx.T("⚠️ No items with those numbers (already deleted or never existed).");
+                note = Ctx.T(LocKey.ViewNoMatches);
             }
             else
             {
                 var removed = await Ctx.Media.DeleteMediaInAlbum(album.Id, found.Select(x => x.Item.Id));
-                note = Ctx.F("✅ Deleted {0} item(s)", removed) +
-                       (found.Count < numbers.Count ? Ctx.F(" ({0} number(s) not found).", numbers.Count - found.Count) : ".");
+                note = Ctx.F(LocKey.ViewDeleted, removed) +
+                       (found.Count < numbers.Count ? Ctx.F(LocKey.ViewDeletedNotFound, numbers.Count - found.Count) : ".");
                 deleted = true;
             }
         }

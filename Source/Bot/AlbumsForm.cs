@@ -1,4 +1,4 @@
-﻿using nAlbum.Bot.Screens;
+using nAlbum.Bot.Screens;
 using nAlbum.Localization;
 using nAlbum.Config;
 using nAlbum.Services;
@@ -103,7 +103,7 @@ public class AlbumsForm : FormBase
         catch (Exception ex) when (ex is not ApiRequestException)
         {
             await Console.Error.WriteLineAsync($"Action '{data}' failed: {ex}");
-            await _ctx.Ui.Say(_ctx.T("⚠️ Something went wrong. Please try again."));
+            await _ctx.Ui.Say(_ctx.T(LocKey.ErrorGeneric));
         }
     }
 }

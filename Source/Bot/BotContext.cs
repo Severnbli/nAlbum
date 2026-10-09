@@ -42,6 +42,6 @@ public sealed class BotContext
     public MediaView View { get; }
     public AlbumCard Cards { get; }
 
-    public string T(string text) => Localization.T(Language, text);
-    public string F(string format, params object[] args) => Localization.F(Language, format, args);
+    public string T(string key) => Localization.T(Language, key);
+    public string F(string key, params object[] args) => Localization.F(Language, key, args);
 }
