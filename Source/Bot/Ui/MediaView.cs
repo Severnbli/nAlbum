@@ -110,9 +110,33 @@ public sealed class MediaView
         if (items.Count > 0)
             await Ctx.SetAction(items[0].Kind == MediaKind.Photo ? ChatAction.UploadPhoto : ChatAction.UploadVideo);
 
-        for (var i = 0; i < items.Count; i++)
+        var sharedCount = Math.Min(v.Ids.Count, items.Count);
+        for (var i = 0; i < sharedCount; i++)
         {
             if (!await EditMedia(v.Ids[i], ToInput(items[i], CaptionAt(captions, i)))) return false;
+        }
+
+        if (v.Ids.Count > items.Count)
+        {
+            var staleIds = v.Ids.Skip(items.Count).ToList();
+            try
+            {
+                await Ctx.Device.Dispatch(a => a.DeleteMessages(Ctx.Device.DeviceId, staleIds));
+                v.Ids.RemoveRange(items.Count, staleIds.Count);
+            }
+            catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+            {
+                await Console.Error.WriteLineAsync($"Could not delete extra view messages: {ex.Message}");
+                return false;
+            }
+        }
+        else if (items.Count > v.Ids.Count)
+        {
+            var missingItems = items.Skip(v.Ids.Count).ToList();
+            var missingCaptions = captions?.Skip(v.Ids.Count).ToList();
+            var (ids, failed) = await SendBatch(missingItems, missingCaptions);
+            v.Ids.AddRange(ids);
+            if (failed > 0 || ids.Count != missingItems.Count) return false;
         }
 
         return true;
@@ -155,13 +179,13 @@ public sealed class MediaView
         var v = Ctx.Session.View;
         var clickedNav = v.NavId != 0 && clickedMessageId == v.NavId;
 
-        if (clickedNav && v.Editable && v.Ids.Count == items.Count && await TryEditGroup(items, captions))
+        if (clickedNav && v.Editable && await TryEditGroup(items, captions))
         {
             await Ctx.Ui.EditNav(textFor(0), nav);
             return;
         }
 
-        await ClearView();
+        if (!await ClearView()) return;
         if (!clickedNav && clickedMessageId != 0) await Ctx.Ui.TryDelete(clickedMessageId); // the card / a stale nav
 
         var (ids, failed) = await SendBatch(items, captions);
@@ -171,16 +195,19 @@ public sealed class MediaView
         v.NavId = navMsg?.MessageId ?? 0;
     }
 
-    public async Task ClearView(int keepMessageId = 0)
+    public async Task<bool> ClearView(int keepMessageId = 0)
     {
         var v = Ctx.Session.View;
         var all = new List<int>(v.Ids);
         if (v.NavId != 0 && v.NavId != keepMessageId) all.Add(v.NavId);
-        v.Ids.Clear();
-        v.NavId = 0;
-        v.Editable = false;
-        v.LastPageKey = null;
-        if (all.Count == 0) return;
+        if (all.Count == 0)
+        {
+            v.Ids.Clear();
+            v.NavId = 0;
+            v.Editable = false;
+            v.LastPageKey = null;
+            return true;
+        }
 
         try
         {
@@ -189,6 +216,13 @@ public sealed class MediaView
         catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
         {
             await Console.Error.WriteLineAsync($"Could not delete old view: {ex.Message}");
+            return false;
         }
+
+        v.Ids.Clear();
+        v.NavId = 0;
+        v.Editable = false;
+        v.LastPageKey = null;
+        return true;
     }
 }
