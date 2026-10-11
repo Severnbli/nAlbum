@@ -111,6 +111,7 @@ public sealed class ViewScreen : Screen
 
         var found = await Ctx.Media.FindOffsetByNumber(album.Id, number);
         var offset = found?.Offset ?? (total - 1) / ViewPage * ViewPage;
+        offset = Math.Min(offset, Math.Max(total - ViewPage, 0));
         var note = found is { Exact: true } ? null : Ctx.F(LocKey.ViewGoToNearest, number);
 
         s.Mode = Mode.Idle;
@@ -152,7 +153,7 @@ public sealed class ViewScreen : Screen
             await m.ConfirmAction(Ctx.T(LocKey.ViewEmpty), true);
             return;
         }
-        if (offset >= total) offset = (total - 1) / ViewPage * ViewPage;
+        offset = Math.Min(offset, Math.Max(total - ViewPage, 0));
 
         await m.ConfirmAction();
 
@@ -194,7 +195,7 @@ public sealed class ViewScreen : Screen
             return;
         }
 
-        if (offset >= total) offset = (total - 1) / ViewPage * ViewPage; // the page vanished after deletions
+        offset = Math.Min(offset, Math.Max(total - ViewPage, 0)); // shift the last page back to keep it full
         if ((flags & DeleteModeFlag) != 0) Ctx.Session.View.DeleteOffset = offset;
 
         var items = seed == 0
@@ -231,10 +232,18 @@ public sealed class ViewScreen : Screen
 
         var bf = new ButtonForm();
         var row = new List<ButtonBase>();
+        var lastOffset = Math.Max(total - ViewPage, 0);
         if (offset > 0)
-            row.Add(new ButtonBase(Ctx.T(LocKey.ButtonPrev), PageCb(album, seed, Math.Max(offset - ViewPage, 0), flags)));
-        if (offset + ViewPage < total)
-            row.Add(new ButtonBase(Ctx.T(LocKey.ButtonNext), PageCb(album, seed, offset + ViewPage, flags)));
+        {
+            var previousOffset = offset == lastOffset
+                                 && lastOffset % ViewPage != 0
+                ? lastOffset / ViewPage * ViewPage
+                : Math.Max(offset - ViewPage, 0);
+            row.Add(new ButtonBase(Ctx.T(LocKey.ButtonPrev), PageCb(album, seed, previousOffset, flags)));
+        }
+        if (offset < lastOffset)
+            row.Add(new ButtonBase(Ctx.T(LocKey.ButtonNext),
+                PageCb(album, seed, Math.Min(offset + ViewPage, lastOffset), flags)));
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
 
         if (deleting)
