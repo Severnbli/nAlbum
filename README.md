@@ -103,4 +103,4 @@ There is currently no automated test project. The application targets .NET 10 an
 
 ## License
 
-This project is distributed under the [MIT License](LICENSE).
+This project is distributed under the [GNU AGPL v3.0 license](LICENSE).
