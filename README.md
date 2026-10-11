@@ -25,7 +25,13 @@ nAlbum is a Telegram bot for creating photo and video albums and sharing them wi
 
 1. Copy `.env.example` to `.env`.
 2. Set `BOT_TOKEN` in `.env`. Optionally set `ADMIN_IDS` to comma-separated Telegram user IDs for admin statistics.
-3. Start the bot:
+3. Start the bot using the published image:
+
+   ```sh
+   docker compose up --no-build -d
+   ```
+   
+   To build and run the image from the local source instead, use:
 
    ```sh
    docker compose up --build -d
@@ -97,4 +103,4 @@ There is currently no automated test project. The application targets .NET 10 an
 
 ## License
 
-This project is distributed under the [MIT License](LICENSE).
+This project is distributed under the [GNU AGPL v3.0 license](LICENSE).

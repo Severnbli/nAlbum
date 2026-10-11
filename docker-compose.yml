@@ -1,5 +1,6 @@
 services:
   bot:
+    image: severnbli/nalbum:latest
     build: .
     restart: unless-stopped
     env_file:
