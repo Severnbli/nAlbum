@@ -244,7 +244,7 @@ public sealed class ViewScreen : Screen
         var hints = new List<string>();
         if (numbers) hints.Add(Ctx.T(LocKey.ViewNumbersHint).TrimStart('\n'));
         if (deleting) hints.Add(Ctx.T(LocKey.ViewDeleteHint).TrimStart('\n'));
-        if (hints.Count > 0) text += "\n➖➖➖\n" + string.Join("\n\n", hints);
+        if (hints.Count > 0) text += "\n\n" + string.Join("\n\n", hints);
         if (note != null) text = note + "\n\n" + text;
 
         var bf = new ButtonForm();
@@ -255,8 +255,11 @@ public sealed class ViewScreen : Screen
                                  && lastOffset % ViewPage != 0
                 ? lastOffset / ViewPage * ViewPage
                 : Math.Max(offset - ViewPage, 0);
+            var pages = (total + ViewPage - 1) / ViewPage;
+            var current = offset >= lastOffset ? pages : Math.Min(offset / ViewPage + 1, pages);
             bf.AddButtonRow(
                 new ButtonBase(Ctx.T(LocKey.ButtonPrev), offset > 0 ? PageCb(album, seed, previousOffset, flags) : BotUi.FirstPageCallback),
+                new ButtonBase($"{current}/{pages}", "noop"),
                 new ButtonBase(Ctx.T(LocKey.ButtonNext),
                     offset < lastOffset ? PageCb(album, seed, Math.Min(offset + ViewPage, lastOffset), flags) : BotUi.LastPageCallback));
         }

@@ -124,7 +124,7 @@ public sealed class MenuScreen : Screen
 
     private async Task ShowLanguage(MessageResult m)
     {
-        await Ctx.Ui.Show(m, Ctx.T(LocKey.LanguageChoose), LanguageButtons());
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.LanguageChoose), await LanguageButtons());
     }
 
     private async Task SetLanguage(MessageResult m, string[] p)
@@ -143,15 +143,20 @@ public sealed class MenuScreen : Screen
             : code;
         await m.ConfirmAction();
         var note = code == "auto" ? Ctx.T(LocKey.LanguageAutoEnabled) : Ctx.T(LocKey.LanguageUpdated);
-        await Ctx.Ui.Show(m, $"{note}\n\n{Ctx.T(LocKey.LanguageChoose)}", LanguageButtons());
+        await Ctx.Ui.Show(m, $"{note}\n\n{Ctx.T(LocKey.LanguageChoose)}", await LanguageButtons());
     }
 
-    private ButtonForm LanguageButtons()
+    /// <summary>Two languages per row; the saved choice (or auto-detect) is marked with ✅.</summary>
+    private async Task<ButtonForm> LanguageButtons()
     {
+        var preference = await Ctx.Preferences.GetLanguageAsync(Ctx.UserId);
+        var current = Ctx.Localization.Has(preference) ? preference : null;
+        string Mark(string label, bool selected) => selected ? $"✅ {label}" : label;
+
         var buttons = new ButtonForm();
-        foreach (var language in Ctx.Localization.Languages)
-            buttons.AddButtonRow(new ButtonBase(language.Label, $"lang:{language.Code}"));
-        buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.LanguageAutoDetect), "lang:auto"));
+        foreach (var pair in Ctx.Localization.Languages.Chunk(2))
+            buttons.AddButtonRow(pair.Select(l => new ButtonBase(Mark(l.Label, l.Code == current), $"lang:{l.Code}")).ToArray());
+        buttons.AddButtonRow(new ButtonBase(Mark(Ctx.T(LocKey.LanguageAutoDetect), current == null), "lang:auto"));
         buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonMenu), "menu"));
         return buttons;
     }
