@@ -165,9 +165,13 @@ public sealed class BotUi
         return await pick.Take(ticket);
     }
 
+    /// <summary>Callback of a ◀ / ▶ button at the start or end of a list: shows a popup instead of turning the page.</summary>
+    public const string FirstPageCallback = "pgend:first";
+    public const string LastPageCallback = "pgend:last";
+
     /// <summary>
-    /// Navigation row of a paged list: ⏮ ◀ page/pages ▶ ⏭. Jumps to the edges appear only when they skip pages;
-    /// the counter button does nothing. Null when everything fits on one page.
+    /// Navigation row of a paged list: ◀ page/pages ▶. Both arrows are always there so the buttons never move;
+    /// at either end they show a popup. The counter button does nothing. Null when everything fits on one page.
     /// </summary>
     public static ButtonBase[] PageRow(int page, int total, int pageSize, Func<int, string> callback)
     {
@@ -175,19 +179,18 @@ public sealed class BotUi
         if (pages <= 1) return null;
         page = Math.Clamp(page, 0, pages - 1);
 
-        var row = new List<ButtonBase>();
-        if (page > 1) row.Add(new ButtonBase("⏮", callback(0)));
-        if (page > 0) row.Add(new ButtonBase("◀", callback(page - 1)));
-        row.Add(new ButtonBase($"{page + 1}/{pages}", "noop"));
-        if (page < pages - 1) row.Add(new ButtonBase("▶", callback(page + 1)));
-        if (page < pages - 2) row.Add(new ButtonBase("⏭", callback(pages - 1)));
-        return row.ToArray();
+        return new[]
+        {
+            new ButtonBase("◀", page > 0 ? callback(page - 1) : FirstPageCallback),
+            new ButtonBase($"{page + 1}/{pages}", "noop"),
+            new ButtonBase("▶", page < pages - 1 ? callback(page + 1) : LastPageCallback)
+        };
     }
 
     public ButtonForm MenuButtons()
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.MenuAlbums), "albums");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuAlbums), "albums:0"), new ButtonBase(Ctx.T(LocKey.MenuNewAlbum), "new"));
         bf.AddButtonRow(Ctx.T(LocKey.MenuGlobalStatistics), "gstats");
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuHelp), "help"), new ButtonBase(Ctx.T(LocKey.MenuPrivacy), "privacy"));
         bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
@@ -195,47 +198,27 @@ public sealed class BotUi
         return bf;
     }
 
-    public ButtonForm AlbumsButtons()
-    {
-        var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
-        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuMyAlbums), "mine:0"), new ButtonBase(Ctx.T(LocKey.MenuSharedWithMe), "shared:0"));
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
-        return bf;
-    }
-
-    public async Task ShowList(MessageResult m, string kind, int page)
+    /// <summary>Album overview: every album the user owns or has access to.</summary>
+    public async Task ShowList(MessageResult m, int page)
     {
         page = Math.Max(page, 0);
-        var (items, total) = kind == "mine"
-            ? await Ctx.Albums.ListOwned(Ctx.UserId, page * ListPage, ListPage)
-            : await Ctx.Albums.ListShared(Ctx.UserId, page * ListPage, ListPage);
-
+        var (items, total) = await Ctx.Albums.ListAccessible(Ctx.UserId, page * ListPage, ListPage);
         if (items.Count == 0 && total > 0) // page is out of range after deletions
         {
             page = (total - 1) / ListPage;
-            (items, total) = kind == "mine"
-                ? await Ctx.Albums.ListOwned(Ctx.UserId, page * ListPage, ListPage)
-                : await Ctx.Albums.ListShared(Ctx.UserId, page * ListPage, ListPage);
+            (items, total) = await Ctx.Albums.ListAccessible(Ctx.UserId, page * ListPage, ListPage);
         }
 
-        var text = kind == "mine" ? Ctx.T(LocKey.ListMineTitle) : Ctx.T(LocKey.ListSharedTitle);
-        if (total == 0)
-        {
-            text += Ctx.T(LocKey.ListEmpty) + (kind == "shared" ? Ctx.T(LocKey.ListSharedEmptyHint) : "");
-        }
+        var text = Ctx.T(LocKey.ListTitle);
+        if (total == 0) text += Ctx.T(LocKey.ListEmpty) + Ctx.T(LocKey.ListEmptyHint);
 
         var bf = new ButtonForm();
         foreach (var it in items)
-        {
-            var icon = RoleIcon(it.Role);
-            bf.AddButtonRow($"{icon} {Text.Truncate(it.Album.Title, 40)} ({it.MediaCount})", $"al:{it.Album.Id}");
-        }
+            bf.AddButtonRow($"{RoleIcon(it.Role)} {Text.Truncate(it.Album.Title, 40)} ({it.MediaCount})", $"al:{it.Album.Id}");
 
-        var nav = PageRow(page, total, ListPage, n => $"{kind}:{n}");
+        var nav = PageRow(page, total, ListPage, n => $"albums:{n}");
         if (nav != null) bf.AddButtonRow(nav);
-        if (kind == "mine") bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "albums");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuNewAlbum), "new"), new ButtonBase(Ctx.T(LocKey.ButtonMenu), "menu"));
 
         await Show(m, text, bf);
     }

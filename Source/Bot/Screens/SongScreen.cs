@@ -30,11 +30,43 @@ namespace nAlbum.Bot.Screens;
 
 /// <summary>
 /// Album song: managers set it (an audio file id); anyone with access plays it. The song message stays in the chat
-/// so listening is not interrupted by menu changes: Done only removes its button and brings the album card back.
+/// while the user works with that album, so listening is not interrupted by menu changes: Done only removes its
+/// button and brings the album card back. Leaving the album (another screen, another album, a command) deletes it.
 /// </summary>
 public sealed class SongScreen : Screen
 {
+    /// <summary>Callbacks that stay inside an album (album id in p[1]); the song survives them for its own album.</summary>
+    private static readonly HashSet<string> AlbumCallbacks = new()
+    {
+        "al", "mg", "view", "vp", "rnd", "rp", "goto", "add", "done", "rmlist", "rmp", "rmy", "rmc", "ren", "del",
+        "mem", "mu", "mk", "mkok", "mpr", "mde", "mxf", "mto", "mtook", "inv", "invn", "inve", "invc", "invd", "invf",
+        "song", "songok", "sng", "sngdel"
+    };
+
+    /// <summary>Callbacks without an album id that never leave the current screen.</summary>
+    private static readonly HashSet<string> NeutralCallbacks = new() { "rmt", "noop", "pgend" };
+
     public SongScreen(BotContext ctx) : base(ctx) { }
+
+    /// <summary>Deletes the song message when a callback leaves its album.</summary>
+    public async Task OnNavigate(string[] p)
+    {
+        var s = Ctx.Session;
+        if (s.SongMessageId == 0 || NeutralCallbacks.Contains(p[0])) return;
+        if (AlbumCallbacks.Contains(p[0]) && Text.Long(p, 1) == s.SongAlbumId) return;
+        await Close();
+    }
+
+    /// <summary>Deletes the song message, if any.</summary>
+    public async Task Close()
+    {
+        var s = Ctx.Session;
+        if (s.SongMessageId == 0) return;
+        var id = s.SongMessageId;
+        s.SongMessageId = 0;
+        s.SongAlbumId = 0;
+        await Ctx.Ui.TryDelete(id);
+    }
 
     public override IReadOnlyCollection<string> Callbacks => new[] { "song", "songok", "sng", "sngdel" };
     public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.SongUpload };
@@ -106,14 +138,17 @@ public sealed class SongScreen : Screen
                 }
 
                 await m.ConfirmAction();
+                await Close(); // never two songs on screen
                 var bf = new ButtonForm();
                 bf.AddButtonRow(Ctx.T(LocKey.ButtonDone), $"songok:{album.Id}");
                 try
                 {
                     await Ctx.SetAction(ChatAction.UploadDocument);
-                    await Ctx.Device.Dispatch(a => a.SendAudio(Ctx.Device.DeviceId, InputFile.FromFileId(album.SongFileId),
+                    var sent = await Ctx.Device.Dispatch(a => a.SendAudio(Ctx.Device.DeviceId, InputFile.FromFileId(album.SongFileId),
                         caption: Ctx.F(LocKey.SongCaption, Text.H(album.Title)), parseMode: ParseMode.Html,
                         replyMarkup: new InlineKeyboardMarkup(bf.ToInlineButtonArray())));
+                    Ctx.Session.SongMessageId = sent.MessageId;
+                    Ctx.Session.SongAlbumId = album.Id;
                 }
                 catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
                 {

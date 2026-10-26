@@ -21,13 +21,18 @@ using nAlbum.Config;
 using nAlbum.Services;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types.Enums;
+using TelegramBotBase.Args;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using TelegramBotBase.Interfaces;
 
 namespace nAlbum.Bot;
 
-/// <summary>Thin router. One instance per user session. Render() stays empty on purpose.</summary>
-public class AlbumsForm : FormBase
+/// <summary>
+/// Thin router. One instance per user session. Render() stays empty on purpose.
+/// The session is saved by the JSON state machine on shutdown and restored on start (see <see cref="SessionSnapshot"/>).
+/// </summary>
+public class AlbumsForm : FormBase, IStateForm
 {
     private readonly BotContext _ctx;
     private readonly MenuScreen _menu;
@@ -36,6 +41,7 @@ public class AlbumsForm : FormBase
     private readonly StatsScreen _stats;
     private readonly MembersScreen _members;
     private readonly AdminScreen _admin;
+    private readonly SongScreen _song;
     private readonly Dictionary<string, Screen> _byCallback = new();
     private readonly Dictionary<Mode, Screen> _byMode = new();
     private readonly Dictionary<string, Screen> _byCommand = new();
@@ -50,10 +56,11 @@ public class AlbumsForm : FormBase
         _stats = new StatsScreen(_ctx);
         _members = new MembersScreen(_ctx);
         _admin = new AdminScreen(_ctx);
+        _song = new SongScreen(_ctx);
 
         var screens = new Screen[]
         {
-            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, _admin, _members, new SongScreen(_ctx)
+            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, _admin, _members, _song
         };
         foreach (var s in screens)
         {
@@ -64,6 +71,19 @@ public class AlbumsForm : FormBase
     }
 
     public override Task Render(MessageResult message) => Task.CompletedTask;
+
+    public Task SaveState(SaveStateEventArgs e)
+    {
+        e.Values[SessionSnapshot.Key] = SessionSnapshot.From(_ctx.Session).ToJson();
+        return Task.CompletedTask;
+    }
+
+    public Task LoadState(LoadStateEventArgs e)
+    {
+        if (e.Values != null && e.Values.TryGetValue(SessionSnapshot.Key, out var value))
+            SessionSnapshot.FromJson(value?.ToString())?.ApplyTo(_ctx.Session);
+        return Task.CompletedTask;
+    }
 
     public override async Task PreLoad(MessageResult message)
     {
@@ -83,6 +103,7 @@ public class AlbumsForm : FormBase
         if (message.IsBotCommand)
         {
             await _add.Abort();                                      // drops the add prompt and keyboard, if any
+            await _song.Close();                                     // a command leaves the album
             _ctx.Session.Mode = Mode.Idle;                           // any command aborts the current flow (as before)
             var args = message.BotCommandParameters;
             if (message.BotCommand == "/start" && args.Count > 0) await _join.TryJoin(args[0]);   // deep link
@@ -135,6 +156,7 @@ public class AlbumsForm : FormBase
         var p = data.Split(':');
         try
         {
+            await _song.OnNavigate(p);                               // leaving the album removes its song
             if (_byCallback.TryGetValue(p[0], out var screen)) await screen.OnCallback(m, p);
             else await m.ConfirmAction();
         }

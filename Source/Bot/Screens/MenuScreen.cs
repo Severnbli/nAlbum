@@ -25,7 +25,7 @@ public sealed class MenuScreen : Screen
 {
     public MenuScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "albums", "mine", "shared", "language", "lang", "help", "privacy" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "albums", "language", "lang", "help", "privacy", "pgend" };
     public override IReadOnlyCollection<string> Commands => new[] { "/cancel", "/menu", "/albums", "/language", "/help", "/privacy" };
 
     public Task<string> WelcomeTextAsync() => Task.FromResult(Ctx.T(LocKey.MenuWelcome));
@@ -42,7 +42,7 @@ public sealed class MenuScreen : Screen
 
         if (command == "/albums")
         {
-            await Ctx.Ui.Say(Ctx.T(LocKey.AlbumsMenuTitle), Ctx.Ui.AlbumsButtons());
+            await Ctx.Ui.ShowList(m, 0);
             return;
         }
 
@@ -80,7 +80,7 @@ public sealed class MenuScreen : Screen
             case "albums":
                 Ctx.Session.Mode = Mode.Idle;
                 await m.ConfirmAction();
-                await Ctx.Ui.Show(m, Ctx.T(LocKey.AlbumsMenuTitle), Ctx.Ui.AlbumsButtons());
+                await Ctx.Ui.ShowList(m, Text.Int(p, 1));
                 break;
 
             case "help":
@@ -88,16 +88,13 @@ public sealed class MenuScreen : Screen
                 await ShowHelp(m);
                 break;
 
+            case "pgend":
+                await m.ConfirmAction(Ctx.T(p.Length > 1 && p[1] == "first" ? LocKey.PageFirst : LocKey.PageLast), true);
+                break;
+
             case "privacy":
                 await m.ConfirmAction();
                 await ShowPrivacy(m);
-                break;
-
-            case "mine":
-            case "shared":
-                Ctx.Session.Mode = Mode.Idle;
-                await m.ConfirmAction();
-                await Ctx.Ui.ShowList(m, p[0], Text.Int(p, 1));
                 break;
 
             case "language":

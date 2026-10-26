@@ -27,6 +27,8 @@ public sealed class UserSession
     public long AlbumId { get; set; }                 // was _albumId
     public int MenuMessageId { get; set; }            // the single message with menu buttons (card, list, prompt)
     public int BroadcastMessageId { get; set; }       // admin's message waiting for broadcast confirmation
+    public int SongMessageId { get; set; }            // album song on screen; removed when the user leaves that album
+    public long SongAlbumId { get; set; }
     public AddState Add { get; } = new();
     public ViewState View { get; } = new();
     public RemovalState Removal { get; } = new();
