@@ -196,7 +196,12 @@ public sealed class MembersScreen : Screen
         {
             case "mk":
             case "mkok":
-                if (!CanKick(actor, target.Role) || target.UserId == Ctx.UserId) break;
+                if (!CanKick(actor, target.Role) || target.UserId == Ctx.UserId)
+                {
+                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
+                    return;
+                }
+
                 if (p[0] == "mk")
                 {
                     await m.ConfirmAction();
@@ -214,7 +219,12 @@ public sealed class MembersScreen : Screen
 
             case "mpr":
             case "mde":
-                if (actor != AlbumRole.Owner || target.Role == AlbumRole.Owner) break;
+                if (actor != AlbumRole.Owner || target.Role == AlbumRole.Owner)
+                {
+                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
+                    return;
+                }
+
                 var promote = p[0] == "mpr";
                 await Ctx.Albums.SetRole(album.Id, userId, promote ? AlbumRole.Manager : AlbumRole.Member);
                 await m.ConfirmAction(Ctx.T(promote ? LocKey.MemberPromoted : LocKey.MemberDemoted));
@@ -223,7 +233,12 @@ public sealed class MembersScreen : Screen
 
             case "mto":
             {
-                if (target.Role == AlbumRole.Owner) break;
+                if (target.Role == AlbumRole.Owner)
+                {
+                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
+                    return;
+                }
+
                 await m.ConfirmAction();
                 var bf = new ButtonForm();
                 bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonMakeOwner), $"mtook:{album.Id}:{userId}"),
