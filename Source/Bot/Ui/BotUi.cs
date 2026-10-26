@@ -191,9 +191,8 @@ public sealed class BotUi
     {
         var bf = new ButtonForm();
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuAlbums), "albums:0"), new ButtonBase(Ctx.T(LocKey.MenuNewAlbum), "new"));
-        bf.AddButtonRow(Ctx.T(LocKey.MenuGlobalStatistics), "gstats");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuGlobalStatistics), "gstats"), new ButtonBase(Ctx.T(LocKey.MenuLanguage), "language"));
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuHelp), "help"), new ButtonBase(Ctx.T(LocKey.MenuPrivacy), "privacy"));
-        bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
         if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuAdminPanel), "admin");
         return bf;
     }
@@ -214,7 +213,7 @@ public sealed class BotUi
 
         var bf = new ButtonForm();
         foreach (var it in items)
-            bf.AddButtonRow($"{RoleIcon(it.Role)} {Text.Truncate(it.Album.Title, 40)} ({it.MediaCount})", $"al:{it.Album.Id}");
+            bf.AddButtonRow($"{RoleIcon(it.Role)} {Text.Truncate(it.Album.Title, 40)} · {Text.N(it.MediaCount)}", $"al:{it.Album.Id}");
 
         var nav = PageRow(page, total, ListPage, n => $"albums:{n}");
         if (nav != null) bf.AddButtonRow(nav);
