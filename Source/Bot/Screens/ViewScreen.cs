@@ -248,24 +248,18 @@ public sealed class ViewScreen : Screen
         if (note != null) text = note + "\n\n" + text;
 
         var bf = new ButtonForm();
-        var row = new List<ButtonBase>();
         var lastOffset = Math.Max(total - ViewPage, 0);
-        if (offset > ViewPage)
-            row.Add(new ButtonBase("⏮", PageCb(album, seed, 0, flags)));
-        if (offset > 0)
+        if (lastOffset > 0) // more than one page: both arrows always shown, a popup at either end
         {
             var previousOffset = offset == lastOffset
                                  && lastOffset % ViewPage != 0
                 ? lastOffset / ViewPage * ViewPage
                 : Math.Max(offset - ViewPage, 0);
-            row.Add(new ButtonBase(Ctx.T(LocKey.ButtonPrev), PageCb(album, seed, previousOffset, flags)));
+            bf.AddButtonRow(
+                new ButtonBase(Ctx.T(LocKey.ButtonPrev), offset > 0 ? PageCb(album, seed, previousOffset, flags) : BotUi.FirstPageCallback),
+                new ButtonBase(Ctx.T(LocKey.ButtonNext),
+                    offset < lastOffset ? PageCb(album, seed, Math.Min(offset + ViewPage, lastOffset), flags) : BotUi.LastPageCallback));
         }
-        if (offset < lastOffset)
-            row.Add(new ButtonBase(Ctx.T(LocKey.ButtonNext),
-                PageCb(album, seed, Math.Min(offset + ViewPage, lastOffset), flags)));
-        if (offset + ViewPage < lastOffset)
-            row.Add(new ButtonBase("⏭", PageCb(album, seed, lastOffset, flags)));
-        if (row.Count > 0) bf.AddButtonRow(row.ToArray());
 
         if (deleting)
         {

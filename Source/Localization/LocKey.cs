@@ -21,8 +21,6 @@ public static class LocKey
 {
     public const string MenuWelcome = nameof(MenuWelcome);
     public const string MenuNewAlbum = nameof(MenuNewAlbum);
-    public const string MenuMyAlbums = nameof(MenuMyAlbums);
-    public const string MenuSharedWithMe = nameof(MenuSharedWithMe);
     public const string MenuDetailedStatistics = nameof(MenuDetailedStatistics);
     public const string MenuLanguage = nameof(MenuLanguage);
     public const string MediaNotInAlbum = nameof(MediaNotInAlbum);
@@ -37,10 +35,7 @@ public static class LocKey
     public const string LanguageUpdated = nameof(LanguageUpdated);
     public const string LanguageAutoEnabled = nameof(LanguageAutoEnabled);
     public const string ErrorGeneric = nameof(ErrorGeneric);
-    public const string ListMineTitle = nameof(ListMineTitle);
-    public const string ListSharedTitle = nameof(ListSharedTitle);
     public const string ListEmpty = nameof(ListEmpty);
-    public const string ListSharedEmptyHint = nameof(ListSharedEmptyHint);
     public const string ButtonMenu = nameof(ButtonMenu);
     public const string ErrorAlbumNotOwned = nameof(ErrorAlbumNotOwned);
     public const string ErrorAlbumUnavailable = nameof(ErrorAlbumUnavailable);
@@ -121,7 +116,6 @@ public static class LocKey
     public const string MenuAlbums = nameof(MenuAlbums);
     public const string MenuAdminPanel = nameof(MenuAdminPanel);
     public const string MenuHelp = nameof(MenuHelp);
-    public const string AlbumsMenuTitle = nameof(AlbumsMenuTitle);
     public const string HelpText = nameof(HelpText);
     public const string AdminTitle = nameof(AdminTitle);
     public const string AdminRemoveAlbums = nameof(AdminRemoveAlbums);
@@ -207,4 +201,8 @@ public static class LocKey
     public const string BroadcastDone = nameof(BroadcastDone);
     public const string MenuPrivacy = nameof(MenuPrivacy);
     public const string PrivacyPolicy = nameof(PrivacyPolicy);
+    public const string ListTitle = nameof(ListTitle);
+    public const string ListEmptyHint = nameof(ListEmptyHint);
+    public const string PageFirst = nameof(PageFirst);
+    public const string PageLast = nameof(PageLast);
 }

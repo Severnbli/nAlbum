@@ -52,7 +52,7 @@ public sealed class JoinScreen : Screen
     {
         await m.ConfirmAction();
         await Ctx.Albums.Leave(Text.Long(p, 1), Ctx.UserId); // the owner has no access row, so this never affects them
-        await Ctx.Ui.ShowList(m, "shared", 0);
+        await Ctx.Ui.ShowList(m, 0);
     }
 
     public async Task TryJoin(string raw)

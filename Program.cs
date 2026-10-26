@@ -19,6 +19,7 @@ using nAlbum.Config;
 using nAlbum.Data;
 using nAlbum.Localization;
 using nAlbum.Services;
+using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
@@ -62,14 +63,28 @@ var bot = BotBaseBuilder
         a.Add("help", "Help");
         a.Add("privacy", "Privacy policy");
     })
-    .NoSerialization()   // form state is transient; albums live in SQLite
+    .UseJSON(config.StatePath, typeof(AlbumsForm))   // sessions are saved on shutdown and restored on start
     .DefaultLanguage()
     .UseThreadPool()   // keeps media in upload order
     .Build();
 
 BotInfo.Username = (await bot.Client.TelegramClient.GetMe()).Username;
 
+// docker stop / Ctrl+C: stop receiving and save the sessions before exiting
+var stopping = new TaskCompletionSource();
+void OnSignal(PosixSignalContext c)
+{
+    c.Cancel = true;
+    stopping.TrySetResult();
+}
+
+using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnSignal);
+using var sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnSignal);
+
 await bot.UploadBotCommands();
 await bot.Start();
 Console.WriteLine($"Bot @{BotInfo.Username} started.");
-await Task.Delay(Timeout.Infinite);
+
+await stopping.Task;
+await bot.Stop();
+Console.WriteLine($"Bot stopped, sessions saved to {config.StatePath}.");
