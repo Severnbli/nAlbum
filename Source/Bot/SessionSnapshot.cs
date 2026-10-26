@@ -42,6 +42,7 @@ public sealed class SessionSnapshot
     public int AddKeyboardMessageId { get; set; }
     public string AddPromptText { get; set; }
     public List<string> AddSeenMediaGroups { get; set; } = new();
+    public Dictionary<string, int> AddReactedMediaGroups { get; set; } = new();
     public Dictionary<int, PendingMedia> AddPending { get; set; } = new();
     public List<int> AddUnsupportedHandled { get; set; } = new();
     public List<int> AddUserMessages { get; set; } = new();
@@ -80,6 +81,7 @@ public sealed class SessionSnapshot
         AddKeyboardMessageId = s.Add.KeyboardMessageId,
         AddPromptText = s.Add.PromptText,
         AddSeenMediaGroups = s.Add.SeenMediaGroups.ToList(),
+        AddReactedMediaGroups = new Dictionary<string, int>(s.Add.ReactedMediaGroups),
         AddPending = new Dictionary<int, PendingMedia>(s.Add.Pending),
         AddUnsupportedHandled = s.Add.UnsupportedHandled.Keys.ToList(),
         AddUserMessages = s.Add.UserMessages.Keys.ToList(),
@@ -118,6 +120,7 @@ public sealed class SessionSnapshot
         s.Add.KeyboardMessageId = AddKeyboardMessageId;
         s.Add.PromptText = AddPromptText;
         foreach (var g in AddSeenMediaGroups ?? new()) s.Add.SeenMediaGroups.Add(g);
+        foreach (var (g, id) in AddReactedMediaGroups ?? new()) s.Add.ReactedMediaGroups[g] = id;
         foreach (var (id, media) in AddPending ?? new()) s.Add.Pending[id] = media;
         foreach (var id in AddUnsupportedHandled ?? new()) s.Add.UnsupportedHandled.TryAdd(id, 0);
         foreach (var id in AddUserMessages ?? new()) s.Add.UserMessages.TryAdd(id, 0);
