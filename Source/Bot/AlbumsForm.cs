@@ -45,6 +45,7 @@ public class AlbumsForm : FormBase, IStateForm
     private readonly Dictionary<string, Screen> _byCallback = new();
     private readonly Dictionary<Mode, Screen> _byMode = new();
     private readonly Dictionary<string, Screen> _byCommand = new();
+    private int _consumedMessageId;   // handled whole in Load; SentData must not pick it up again
 
     public AlbumsForm(AppConfig config, AlbumService albums, MediaService media, CodeThrottle throttle,
                       StatsService stats, UserPreferenceService preferences, LocalizationService localization)
@@ -103,6 +104,7 @@ public class AlbumsForm : FormBase, IStateForm
         // a broadcast may itself contain or start with commands; only a bare /cancel leaves the flow
         if (_ctx.Session.Mode == Mode.Broadcast && message.MessageText?.Trim() != "/cancel")
         {
+            _consumedMessageId = message.MessageId;
             await _admin.OnBroadcastMessage(message.UpdateData.Message);   // any message, text or media
             return;
         }
@@ -122,6 +124,7 @@ public class AlbumsForm : FormBase, IStateForm
 
         if (_ctx.Session.Mode == Mode.InviteForward)
         {
+            _consumedMessageId = message.MessageId;
             await _members.OnForward(message.UpdateData.Message);   // any forwarded message, text or media
             return;
         }
@@ -135,7 +138,8 @@ public class AlbumsForm : FormBase, IStateForm
 
     public override async Task SentData(DataResult data)
     {
-        if (!_ctx.IsPrivate || _ctx.Session.Mode is Mode.InviteForward or Mode.Broadcast) return;   // handled in Load
+        // handled in Load; the flow may already be over (Mode.Idle), so the message id is checked as well
+        if (!_ctx.IsPrivate || data.Message?.MessageId == _consumedMessageId || _ctx.Session.Mode is Mode.InviteForward or Mode.Broadcast) return;
         if (_ctx.Session.Mode is Mode.Removing or Mode.RemovePrompt or Mode.SongUpload && _byMode.TryGetValue(_ctx.Session.Mode, out var owner))
             await owner.OnMedia(data);                               // media picks items to delete, or is the album song
         else

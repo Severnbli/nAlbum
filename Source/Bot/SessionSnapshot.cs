@@ -31,6 +31,7 @@ public sealed class SessionSnapshot
     public long AlbumId { get; set; }
     public int MenuMessageId { get; set; }
     public int BroadcastMessageId { get; set; }
+    public BroadcastDraft Broadcast { get; set; }
     public int SongMessageId { get; set; }
     public long SongAlbumId { get; set; }
 
@@ -71,6 +72,7 @@ public sealed class SessionSnapshot
         AlbumId = s.AlbumId,
         MenuMessageId = s.MenuMessageId,
         BroadcastMessageId = s.BroadcastMessageId,
+        Broadcast = s.Broadcast,
         SongMessageId = s.SongMessageId,
         SongAlbumId = s.SongAlbumId,
 
@@ -109,6 +111,7 @@ public sealed class SessionSnapshot
         s.AlbumId = AlbumId;
         s.MenuMessageId = MenuMessageId;
         s.BroadcastMessageId = BroadcastMessageId;
+        s.Broadcast = Broadcast;
         s.SongMessageId = SongMessageId;
         s.SongAlbumId = SongAlbumId;
 
