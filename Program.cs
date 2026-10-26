@@ -60,6 +60,7 @@ var bot = BotBaseBuilder
         a.Add("cancel", "Cancel the current action");
         a.Add("language", "Choose bot language");
         a.Add("help", "Help");
+        a.Add("privacy", "Privacy policy");
     })
     .NoSerialization()   // form state is transient; albums live in SQLite
     .DefaultLanguage()

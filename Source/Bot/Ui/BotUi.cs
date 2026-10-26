@@ -189,7 +189,8 @@ public sealed class BotUi
         var bf = new ButtonForm();
         bf.AddButtonRow(Ctx.T(LocKey.MenuAlbums), "albums");
         bf.AddButtonRow(Ctx.T(LocKey.MenuGlobalStatistics), "gstats");
-        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuHelp), "help"), new ButtonBase(Ctx.T(LocKey.MenuLanguage), "language"));
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuHelp), "help"), new ButtonBase(Ctx.T(LocKey.MenuPrivacy), "privacy"));
+        bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
         if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuAdminPanel), "admin");
         return bf;
     }

@@ -205,4 +205,6 @@ public static class LocKey
     public const string BroadcastBusy = nameof(BroadcastBusy);
     public const string BroadcastStarted = nameof(BroadcastStarted);
     public const string BroadcastDone = nameof(BroadcastDone);
+    public const string MenuPrivacy = nameof(MenuPrivacy);
+    public const string PrivacyPolicy = nameof(PrivacyPolicy);
 }
