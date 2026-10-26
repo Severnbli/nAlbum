@@ -105,7 +105,7 @@
     "MenuAdminPanel": "🛠 Admin panel",
     "MenuHelp": "❓ Help",
     "AlbumsMenuTitle": "📁 <b>Albums</b>\n\nCreate a new album, or open one of yours or one shared with you.",
-    "HelpText": "❓ <b>Help</b>\n\nThe guide is coming soon.",
+    "HelpText": "❓ <b>Help</b>\n\nnAlbum keeps your photos and videos in albums and lets you share them with friends. Invite people with a link or by forwarding a message from them. Members can view an album, managers can also edit it, and the owner controls everything. Media numbers never change, even after deletions.\n\n<b>Commands</b>\n/menu – main menu\n/albums – your albums and albums shared with you\n/new – create an album\n/join <code>CODE</code> – join an album with an invite code\n/language – choose the bot language\n/privacy – privacy policy\n/cancel – cancel the current action\n/help – this help\n\nGot an invite code? Just send it to me.",
     "AdminTitle": "🛠 <b>Admin panel</b>",
     "AdminRemoveAlbums": "🗑 Remove albums",
     "AdminAlbumsTitle": "🗑 <b>All albums</b>\nChoose an album to remove.",
