@@ -185,4 +185,15 @@ public static class LocKey
     public const string ButtonOpen = nameof(ButtonOpen);
     public const string AddedToAlbumNotice = nameof(AddedToAlbumNotice);
     public const string JoinAlready = nameof(JoinAlready);
+    public const string ButtonSong = nameof(ButtonSong);
+    public const string ButtonSetSong = nameof(ButtonSetSong);
+    public const string ButtonRemoveSong = nameof(ButtonRemoveSong);
+    public const string SongPrompt = nameof(SongPrompt);
+    public const string SongPromptReplace = nameof(SongPromptReplace);
+    public const string SongOnlyAudio = nameof(SongOnlyAudio);
+    public const string SongSaved = nameof(SongSaved);
+    public const string SongRemoved = nameof(SongRemoved);
+    public const string SongNone = nameof(SongNone);
+    public const string SongCaption = nameof(SongCaption);
+    public const string SongFailed = nameof(SongFailed);
 }

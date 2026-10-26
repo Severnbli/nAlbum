@@ -148,6 +148,14 @@ public class AlbumService
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.Title, title));
     }
 
+    /// <summary>Sets (or with null removes) the album song.</summary>
+    public async Task SetSong(long albumId, string fileId)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        await db.Albums.Where(a => a.Id == albumId)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.SongFileId, fileId));
+    }
+
     public async Task<int> DeleteAlbum(long albumId)
     {
         await using var db = await _factory.CreateDbContextAsync();

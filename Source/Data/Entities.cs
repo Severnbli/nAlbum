@@ -39,6 +39,9 @@ public class Album
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public int NextNumber { get; set; } = 1;   // next permanent media number; never decreases, never reused
+
+    /// <summary>Telegram file id of the album song (audio), or null.</summary>
+    public string SongFileId { get; set; }
 }
 
 /// <summary>A reference to media stored on Telegram's servers (file ids only, no files).</summary>

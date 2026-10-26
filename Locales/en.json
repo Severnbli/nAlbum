@@ -167,6 +167,17 @@
     "ButtonInviteAnother": "📨 Invite another",
     "ButtonOpen": "📁 Open",
     "AddedToAlbumNotice": "📥 You were added to the album <b>{0}</b>.",
-    "JoinAlready": "ℹ️ You already have access to this album.\n\n"
+    "JoinAlready": "ℹ️ You already have access to this album.\n\n",
+    "ButtonSong": "🎵 Song",
+    "ButtonSetSong": "🎵 Album song",
+    "ButtonRemoveSong": "🗑 Remove song",
+    "SongPrompt": "🎵 Send me an audio file (music) to use as the song of <b>{0}</b>. Everyone with access can play it from the album card.",
+    "SongPromptReplace": "\n\nThe album already has a song; a new one replaces it.",
+    "SongOnlyAudio": "⚠️ Please send an audio file (music), not a document or voice message.",
+    "SongSaved": "✅ Album song saved.",
+    "SongRemoved": "Album song removed.",
+    "SongNone": "This album has no song.",
+    "SongCaption": "🎵 <b>{0}</b>\nTurn it on and enable repeat, then press Done.",
+    "SongFailed": "⚠️ The song could not be sent. Ask a manager to set it again."
   }
 }

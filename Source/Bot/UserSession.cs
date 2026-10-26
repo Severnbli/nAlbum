@@ -19,7 +19,7 @@ using nAlbum.Data;
 
 namespace nAlbum.Bot;
 
-public enum Mode { Idle, NewTitle, Rename, Adding, Removing, RemovePrompt, GoToNumber, InviteForward }
+public enum Mode { Idle, NewTitle, Rename, Adding, Removing, RemovePrompt, GoToNumber, InviteForward, SongUpload }
 
 public sealed class UserSession
 {

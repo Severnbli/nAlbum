@@ -47,6 +47,7 @@ public sealed class AlbumCard
 
         var bf = new ButtonForm();
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonView), $"view:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonRandom), $"rnd:{album.Id}"));
+        if (album.SongFileId != null) bf.AddButtonRow(Ctx.T(LocKey.ButtonSong), $"song:{album.Id}");
         if (manager) bf.AddButtonRow(Ctx.T(LocKey.ButtonManage), $"mg:{album.Id}");
         var back = new ButtonBase(Ctx.T(LocKey.ButtonBack), role == AlbumRole.Owner ? "mine:0" : "shared:0");
         if (role == AlbumRole.Owner) bf.AddButtonRow(back);
@@ -62,7 +63,7 @@ public sealed class AlbumCard
 
         var bf = new ButtonForm();
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonAddMedia), $"add:{album.Id}"), new ButtonBase(Ctx.T(LocKey.ButtonRemoveMedia), $"rmlist:{album.Id}:0"));
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonRename), $"ren:{album.Id}");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonRename), $"ren:{album.Id}"), new ButtonBase(Ctx.T(LocKey.ButtonSetSong), $"sng:{album.Id}"));
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonInviteLinks), $"inv:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonInviteForward), $"invf:{album.Id}"));
         bf.AddButtonRow(Ctx.T(LocKey.ButtonMembers), $"mem:{album.Id}:0");
         if (role == AlbumRole.Owner)

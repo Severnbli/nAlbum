@@ -51,7 +51,7 @@ public class AlbumsForm : FormBase
 
         var screens = new Screen[]
         {
-            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, new AdminScreen(_ctx), _members
+            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, new AdminScreen(_ctx), _members, new SongScreen(_ctx)
         };
         foreach (var s in screens)
         {
@@ -106,8 +106,8 @@ public class AlbumsForm : FormBase
     public override async Task SentData(DataResult data)
     {
         if (!_ctx.IsPrivate || _ctx.Session.Mode == Mode.InviteForward) return;   // handled in Load
-        if (_ctx.Session.Mode is Mode.Removing or Mode.RemovePrompt && _byMode.TryGetValue(_ctx.Session.Mode, out var owner))
-            await owner.OnMedia(data);                               // media picks items to delete
+        if (_ctx.Session.Mode is Mode.Removing or Mode.RemovePrompt or Mode.SongUpload && _byMode.TryGetValue(_ctx.Session.Mode, out var owner))
+            await owner.OnMedia(data);                               // media picks items to delete, or is the album song
         else
             await _add.OnMedia(data);                                // adds in Mode.Adding, otherwise shows a hint
     }
