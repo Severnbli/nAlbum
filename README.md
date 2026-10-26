@@ -69,7 +69,7 @@ dotnet run
 | Command | Description |
 | --- | --- |
 | `/start`, `/menu` | Open the main menu |
-| `/albums` | Open the albums menu |
+| `/albums` | Show all your albums: owned and shared with you |
 | `/new` | Create an album |
 | `/join CODE` | Join an album using an invite code |
 | `/language` | Choose a language or Telegram-language detection |

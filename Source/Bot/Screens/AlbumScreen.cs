@@ -137,7 +137,7 @@ public sealed class AlbumScreen : Screen
                 var media = await Ctx.Albums.DeleteAlbum(album.Id);
                 await Ctx.Stats.IncrementAsync(StatKeys.AlbumsDeleted);
                 await Ctx.Stats.IncrementAsync(StatKeys.MediaDeleted, media);
-                await Ctx.Ui.ShowList(m, "mine", 0);
+                await Ctx.Ui.ShowList(m, 0);
                 break;
             }
         }
@@ -152,7 +152,7 @@ public sealed class AlbumScreen : Screen
     private ButtonForm NewCancelButtons()
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), "albums");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), "menu");
         return bf;
     }
 

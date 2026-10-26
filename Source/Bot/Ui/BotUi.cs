@@ -187,7 +187,7 @@ public sealed class BotUi
     public ButtonForm MenuButtons()
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.MenuAlbums), "albums");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuAlbums), "albums:0"), new ButtonBase(Ctx.T(LocKey.MenuNewAlbum), "new"));
         bf.AddButtonRow(Ctx.T(LocKey.MenuGlobalStatistics), "gstats");
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuHelp), "help"), new ButtonBase(Ctx.T(LocKey.MenuPrivacy), "privacy"));
         bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
@@ -195,47 +195,27 @@ public sealed class BotUi
         return bf;
     }
 
-    public ButtonForm AlbumsButtons()
-    {
-        var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
-        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuMyAlbums), "mine:0"), new ButtonBase(Ctx.T(LocKey.MenuSharedWithMe), "shared:0"));
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
-        return bf;
-    }
-
-    public async Task ShowList(MessageResult m, string kind, int page)
+    /// <summary>Album overview: every album the user owns or has access to.</summary>
+    public async Task ShowList(MessageResult m, int page)
     {
         page = Math.Max(page, 0);
-        var (items, total) = kind == "mine"
-            ? await Ctx.Albums.ListOwned(Ctx.UserId, page * ListPage, ListPage)
-            : await Ctx.Albums.ListShared(Ctx.UserId, page * ListPage, ListPage);
-
+        var (items, total) = await Ctx.Albums.ListAccessible(Ctx.UserId, page * ListPage, ListPage);
         if (items.Count == 0 && total > 0) // page is out of range after deletions
         {
             page = (total - 1) / ListPage;
-            (items, total) = kind == "mine"
-                ? await Ctx.Albums.ListOwned(Ctx.UserId, page * ListPage, ListPage)
-                : await Ctx.Albums.ListShared(Ctx.UserId, page * ListPage, ListPage);
+            (items, total) = await Ctx.Albums.ListAccessible(Ctx.UserId, page * ListPage, ListPage);
         }
 
-        var text = kind == "mine" ? Ctx.T(LocKey.ListMineTitle) : Ctx.T(LocKey.ListSharedTitle);
-        if (total == 0)
-        {
-            text += Ctx.T(LocKey.ListEmpty) + (kind == "shared" ? Ctx.T(LocKey.ListSharedEmptyHint) : "");
-        }
+        var text = Ctx.T(LocKey.ListTitle);
+        if (total == 0) text += Ctx.T(LocKey.ListEmpty) + Ctx.T(LocKey.ListEmptyHint);
 
         var bf = new ButtonForm();
         foreach (var it in items)
-        {
-            var icon = RoleIcon(it.Role);
-            bf.AddButtonRow($"{icon} {Text.Truncate(it.Album.Title, 40)} ({it.MediaCount})", $"al:{it.Album.Id}");
-        }
+            bf.AddButtonRow($"{RoleIcon(it.Role)} {Text.Truncate(it.Album.Title, 40)} ({it.MediaCount})", $"al:{it.Album.Id}");
 
-        var nav = PageRow(page, total, ListPage, n => $"{kind}:{n}");
+        var nav = PageRow(page, total, ListPage, n => $"albums:{n}");
         if (nav != null) bf.AddButtonRow(nav);
-        if (kind == "mine") bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "albums");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuNewAlbum), "new"), new ButtonBase(Ctx.T(LocKey.ButtonMenu), "menu"));
 
         await Show(m, text, bf);
     }

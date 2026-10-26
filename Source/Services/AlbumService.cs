@@ -78,10 +78,12 @@ public class AlbumService
 
     public async Task<bool> CanManage(Album album, long userId) => await GetRole(album, userId) >= AlbumRole.Manager;
 
-    public async Task<(List<AlbumListItem> Items, int Total)> ListOwned(long ownerId, int skip, int take)
+    /// <summary>Albums the user owns or has access to, newest first, with the user's role in each.</summary>
+    public async Task<(List<AlbumListItem> Items, int Total)> ListAccessible(long userId, int skip, int take)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var query = db.Albums.AsNoTracking().Where(a => a.OwnerId == ownerId);
+        var query = db.Albums.AsNoTracking()
+            .Where(a => a.OwnerId == userId || db.Access.Any(x => x.AlbumId == a.Id && x.UserId == userId));
         var total = await query.CountAsync();
         var items = await query
             .OrderByDescending(a => a.Id)
@@ -90,28 +92,9 @@ public class AlbumService
             {
                 Album = a,
                 MediaCount = db.Media.Count(m => m.AlbumId == a.Id),
-                Role = AlbumRole.Owner
-            })
-            .ToListAsync();
-        return (items, total);
-    }
-
-    public async Task<(List<AlbumListItem> Items, int Total)> ListShared(long userId, int skip, int take)
-    {
-        await using var db = await _factory.CreateDbContextAsync();
-        var query = from x in db.Access.AsNoTracking()
-                    join a in db.Albums.AsNoTracking() on x.AlbumId equals a.Id
-                    where x.UserId == userId
-                    select new { Album = a, x.GrantedAt, x.Role };
-        var total = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(r => r.GrantedAt).ThenByDescending(r => r.Album.Id)
-            .Skip(skip).Take(take)
-            .Select(r => new AlbumListItem
-            {
-                Album = r.Album,
-                MediaCount = db.Media.Count(m => m.AlbumId == r.Album.Id),
-                Role = r.Role
+                Role = a.OwnerId == userId
+                    ? AlbumRole.Owner
+                    : db.Access.Where(x => x.AlbumId == a.Id && x.UserId == userId).Select(x => x.Role).First()
             })
             .ToListAsync();
         return (items, total);

@@ -49,7 +49,7 @@ public sealed class AlbumCard
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonView), $"view:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonRandom), $"rnd:{album.Id}"));
         if (album.SongFileId != null) bf.AddButtonRow(Ctx.T(LocKey.ButtonSong), $"song:{album.Id}");
         if (manager) bf.AddButtonRow(Ctx.T(LocKey.ButtonManage), $"mg:{album.Id}");
-        var back = new ButtonBase(Ctx.T(LocKey.ButtonBack), role == AlbumRole.Owner ? "mine:0" : "shared:0");
+        var back = new ButtonBase(Ctx.T(LocKey.ButtonBack), "albums:0");
         if (role == AlbumRole.Owner) bf.AddButtonRow(back);
         else bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonLeave), $"leave:{album.Id}"), back);
         return (sb.ToString(), bf);
