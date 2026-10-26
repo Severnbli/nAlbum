@@ -36,6 +36,7 @@ public class AlbumsForm : FormBase
     private readonly StatsScreen _stats;
     private readonly MembersScreen _members;
     private readonly AdminScreen _admin;
+    private readonly SongScreen _song;
     private readonly Dictionary<string, Screen> _byCallback = new();
     private readonly Dictionary<Mode, Screen> _byMode = new();
     private readonly Dictionary<string, Screen> _byCommand = new();
@@ -50,10 +51,11 @@ public class AlbumsForm : FormBase
         _stats = new StatsScreen(_ctx);
         _members = new MembersScreen(_ctx);
         _admin = new AdminScreen(_ctx);
+        _song = new SongScreen(_ctx);
 
         var screens = new Screen[]
         {
-            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, _admin, _members, new SongScreen(_ctx)
+            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, _admin, _members, _song
         };
         foreach (var s in screens)
         {
@@ -83,6 +85,7 @@ public class AlbumsForm : FormBase
         if (message.IsBotCommand)
         {
             await _add.Abort();                                      // drops the add prompt and keyboard, if any
+            await _song.Close();                                     // a command leaves the album
             _ctx.Session.Mode = Mode.Idle;                           // any command aborts the current flow (as before)
             var args = message.BotCommandParameters;
             if (message.BotCommand == "/start" && args.Count > 0) await _join.TryJoin(args[0]);   // deep link
@@ -135,6 +138,7 @@ public class AlbumsForm : FormBase
         var p = data.Split(':');
         try
         {
+            await _song.OnNavigate(p);                               // leaving the album removes its song
             if (_byCallback.TryGetValue(p[0], out var screen)) await screen.OnCallback(m, p);
             else await m.ConfirmAction();
         }
