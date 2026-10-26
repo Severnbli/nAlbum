@@ -24,7 +24,8 @@ namespace nAlbum.Services;
 public class AlbumService
 {
     public const string CodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
-    public const int CodeLength = 10;
+    public const int CodeLength = 20;        // 100 bits: not guessable even with many accounts
+    public const int LegacyCodeLength = 10;  // codes of albums that were open before invite links; still accepted
 
     private readonly IDbContextFactory<AlbumDb> _factory;
 
@@ -46,7 +47,7 @@ public class AlbumService
     }
 
     public static bool LooksLikeCode(string s) =>
-        s != null && s.Length == CodeLength && s.All(c => CodeAlphabet.Contains(c));
+        s != null && s.Length is CodeLength or LegacyCodeLength && s.All(c => CodeAlphabet.Contains(c));
 
     // ----------------------------------------------------------- albums
     public async Task<Album> CreateAlbum(long ownerId, string title)

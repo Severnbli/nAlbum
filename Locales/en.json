@@ -35,7 +35,7 @@
     "AlbumTitlePrompt": "Send the album title, or /cancel.",
     "JoinUsage": "Usage: /join CODE",
     "JoinHint": "Send me an invite code, or use the menu.",
-    "JoinThrottled": "⏳ Too many wrong codes. Please try again in a few minutes.",
+    "JoinThrottled": "⏳ Too many wrong codes. Code entry is paused for a while – please try again later.",
     "JoinWrongCode": "❌ This invite is wrong, expired or used up.",
     "JoinGranted": "✅ Access granted.\n\n",
     "AddOnlyMedia": "Only photos and videos can be added. Press Done when you're finished.",

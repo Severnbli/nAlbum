@@ -27,7 +27,7 @@ nAlbum is a Telegram bot for creating photo and video albums and sharing them wi
 
 Managers cannot act on other managers or the owner. Management actions are in the album's **⚙️ Manage** submenu; the album card shows your role. After transferring ownership, the previous owner becomes a manager.
 
-Invite links are created in **🔗 Invite links** with an expiry (1 hour to 30 days, or none) and a use limit (1 to 50, or none). Anyone who opens a valid link becomes a member. Inviting by forward works only if the person's privacy settings allow linking forwarded messages to their account.
+Invite links are created in **🔗 Invite links** with an expiry (1 hour to 30 days, or none) and a use limit (1 to 50, or none). Anyone who opens a valid link becomes a member. Invite codes are 20 random characters (about 100 bits). Wrong codes are throttled: 5 in 10 minutes lock code entry for that user, with each further lockout doubling up to a day, and a burst of wrong codes from all users together pauses code entry for everyone for a minute. Codes of albums that were open before invite links (10 characters) keep working; managers can delete those links and create new ones. Inviting by forward works only if the person's privacy settings allow linking forwarded messages to their account.
 
 ## Get started
 
