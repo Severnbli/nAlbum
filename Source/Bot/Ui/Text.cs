@@ -33,6 +33,14 @@ public static class Text
     public static long Long(string[] p, int i) => p.Length > i && long.TryParse(p[i], out var v) ? v : 0;
 
     public static string N(long v) => v.ToString("N0", CultureInfo.InvariantCulture);
+
+    /// <summary>"First Last" of a Telegram user, or null.</summary>
+    public static string UserName(Telegram.Bot.Types.User user)
+    {
+        if (user == null) return null;
+        var name = string.Join(' ', new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        return name.Length == 0 ? null : Truncate(name, 64);
+    }
 }
 
 public static class NumberParser

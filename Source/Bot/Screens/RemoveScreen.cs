@@ -43,7 +43,7 @@ public sealed class RemoveScreen : Screen
         var (items, missing) = picked.Value;
 
         var album = await Ctx.Albums.GetAlbum(Ctx.Session.AlbumId);
-        if (album == null || album.OwnerId != Ctx.UserId || Ctx.Session.Mode != Mode.RemovePrompt)
+        if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId) || Ctx.Session.Mode != Mode.RemovePrompt)
         {
             if (Ctx.Session.Mode == Mode.RemovePrompt) Ctx.Session.Mode = Mode.Idle;
             return;
@@ -83,7 +83,7 @@ public sealed class RemoveScreen : Screen
     /// <summary>Card button LocKey.ButtonRemoveMedia: turns the card message into the "type numbers" prompt.</summary>
     private async Task OnRemovePrompt(MessageResult m, string[] p)
     {
-        var album = await Ctx.Ui.OwnedAlbum(m, p);
+        var album = await Ctx.Ui.ManagedAlbum(m, p);
         if (album == null) return;
 
         if (await Ctx.Media.MediaCount(album.Id) == 0)
@@ -111,7 +111,7 @@ public sealed class RemoveScreen : Screen
 
         var bf = new ButtonForm();
         bf.AddButtonRow(Ctx.T(LocKey.ButtonViewWithNumbers), $"vp:{album.Id}:0:1");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonBackCancel), $"al:{album.Id}");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBackCancel), $"mg:{album.Id}");
 
         if (r.PromptMsgId != 0)
         {
@@ -137,7 +137,7 @@ public sealed class RemoveScreen : Screen
     private async Task OnRemovePromptText(MessageResult message, string text)
     {
         var album = await Ctx.Albums.GetAlbum(Ctx.Session.AlbumId);
-        if (album == null || album.OwnerId != Ctx.UserId)
+        if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId))
         {
             Ctx.Session.Mode = Mode.Idle;
             return;
@@ -256,9 +256,9 @@ public sealed class RemoveScreen : Screen
         }
 
         var album = await Ctx.Albums.GetAlbum(r.AlbumId);
-        if (album == null || album.OwnerId != Ctx.UserId)
+        if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId))
         {
-            await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumNotOwned), true);
+            await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
             return null;
         }
 

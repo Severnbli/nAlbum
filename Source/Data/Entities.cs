@@ -22,15 +22,19 @@ public enum MediaKind
     Video = 1
 }
 
+/// <summary>Album roles in ascending order of rights. Owner is Album.OwnerId; only Member and Manager are stored in AlbumAccess.</summary>
+public enum AlbumRole
+{
+    Member = 0,
+    Manager = 1,
+    Owner = 2
+}
+
 public class Album
 {
     public long Id { get; set; }
     public long OwnerId { get; set; }
     public string Title { get; set; }
-    public bool IsOpen { get; set; }
-
-    /// <summary>Random code that gives view access. Null while the album is closed.</summary>
-    public string AccessCode { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -49,23 +53,48 @@ public class MediaItem
     public int Number { get; set; }            // permanent number inside the album; gaps after deletions are normal
 }
 
-/// <summary>A user who entered a valid code of an open album.</summary>
+/// <summary>A member or manager of an album (joined by invite link or invited by forward).</summary>
 public class AlbumAccess
 {
     public long AlbumId { get; set; }
     public long UserId { get; set; }
+    public AlbumRole Role { get; set; } = AlbumRole.Member;
     public DateTime GrantedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>Invite link: makes whoever opens it a member. Null ExpiresAt / MaxUses = no limit.</summary>
+public class InviteLink
+{
+    public long Id { get; set; }
+    public long AlbumId { get; set; }
+    public string Code { get; set; }
+    public long CreatedBy { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ExpiresAt { get; set; }
+    public int? MaxUses { get; set; }
+    public int Uses { get; set; }
+
+    public bool IsUsable(DateTime now) => (ExpiresAt == null || ExpiresAt > now) && (MaxUses == null || Uses < MaxUses);
 }
 
 public class AlbumListItem
 {
     public Album Album { get; set; }
     public int MediaCount { get; set; }
+    public AlbumRole Role { get; set; }
+}
+
+public class MemberInfo
+{
+    public long UserId { get; set; }
+    public AlbumRole Role { get; set; }
+    public string Name { get; set; }   // null when the user has not been seen with a name yet
 }
 
 public class BotUser
 {
     public long UserId { get; set; }
+    public string Name { get; set; }   // Telegram first and last name, refreshed while the user is active
     public DateTime FirstSeenAt { get; set; }
     public DateTime LastSeenAt { get; set; }
 }

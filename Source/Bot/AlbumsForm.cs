@@ -15,6 +15,7 @@
 */
 
 using nAlbum.Bot.Screens;
+using nAlbum.Bot.Ui;
 using nAlbum.Localization;
 using nAlbum.Config;
 using nAlbum.Services;
@@ -33,6 +34,7 @@ public class AlbumsForm : FormBase
     private readonly JoinScreen _join;
     private readonly AddMediaScreen _add;
     private readonly StatsScreen _stats;
+    private readonly MembersScreen _members;
     private readonly Dictionary<string, Screen> _byCallback = new();
     private readonly Dictionary<Mode, Screen> _byMode = new();
     private readonly Dictionary<string, Screen> _byCommand = new();
@@ -45,10 +47,11 @@ public class AlbumsForm : FormBase
         _join = new JoinScreen(_ctx);
         _add = new AddMediaScreen(_ctx);
         _stats = new StatsScreen(_ctx);
+        _members = new MembersScreen(_ctx);
 
         var screens = new Screen[]
         {
-            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, new AdminScreen(_ctx)
+            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, new AdminScreen(_ctx), _members
         };
         foreach (var s in screens)
         {
@@ -63,9 +66,9 @@ public class AlbumsForm : FormBase
     public override async Task PreLoad(MessageResult message)
     {
         if (!_ctx.IsPrivate) return;
-        await _ctx.Stats.TouchUserAsync(_ctx.UserId);
-        var telegramLanguage = message.UpdateData.Message?.From?.LanguageCode
-                               ?? message.UpdateData.CallbackQuery?.From?.LanguageCode;
+        var from = message.UpdateData.Message?.From ?? message.UpdateData.CallbackQuery?.From;
+        await _ctx.Stats.TouchUserAsync(_ctx.UserId, Text.UserName(from));
+        var telegramLanguage = from?.LanguageCode;
         var preference = await _ctx.Preferences.GetLanguageAsync(_ctx.UserId);
         _ctx.Language = _ctx.Localization.Resolve(preference, telegramLanguage);
     }
@@ -87,6 +90,12 @@ public class AlbumsForm : FormBase
             return;
         }
 
+        if (_ctx.Session.Mode == Mode.InviteForward)
+        {
+            await _members.OnForward(message.UpdateData.Message);   // any forwarded message, text or media
+            return;
+        }
+
         await _add.OnIncomingMessage(message.UpdateData.Message);
         var text = message.MessageText?.Trim();
         if (string.IsNullOrEmpty(text)) return;                      // media is handled in SentData
@@ -96,7 +105,7 @@ public class AlbumsForm : FormBase
 
     public override async Task SentData(DataResult data)
     {
-        if (!_ctx.IsPrivate) return;
+        if (!_ctx.IsPrivate || _ctx.Session.Mode == Mode.InviteForward) return;   // handled in Load
         if (_ctx.Session.Mode is Mode.Removing or Mode.RemovePrompt && _byMode.TryGetValue(_ctx.Session.Mode, out var owner))
             await owner.OnMedia(data);                               // media picks items to delete
         else

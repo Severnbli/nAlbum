@@ -24,7 +24,7 @@ namespace nAlbum.Data;
 /// </summary>
 public static class SchemaUpgrader
 {
-    public const int LatestVersion = 3;
+    public const int LatestVersion = 4;
 
     public static async Task RunAsync(IDbContextFactory<AlbumDb> factory, string dbPath)
     {
@@ -45,6 +45,7 @@ public static class SchemaUpgrader
             await Backup(db, dbPath, version);
             if (version < 2) await UpgradeTo2(db);
             if (version < 3) await UpgradeTo3(db);
+            if (version < 4) await UpgradeTo4(db);
         }
 
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
@@ -119,5 +120,43 @@ public static class SchemaUpgrader
         await db.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS \"UserPreferences\" (\"UserId\" INTEGER NOT NULL CONSTRAINT \"PK_UserPreferences\" PRIMARY KEY, \"LanguageCode\" TEXT NULL)");
         await db.Database.ExecuteSqlRawAsync("PRAGMA user_version = 3");
+    }
+
+    /// <summary>Roles and invite links replace open/closed albums. Codes of open albums become unlimited invite links.</summary>
+    private static async Task UpgradeTo4(AlbumDb db)
+    {
+        string[] steps =
+        {
+            "CREATE TABLE IF NOT EXISTS \"InviteLinks\" (" +
+            " \"Id\" INTEGER NOT NULL CONSTRAINT \"PK_InviteLinks\" PRIMARY KEY AUTOINCREMENT," +
+            " \"AlbumId\" INTEGER NOT NULL," +
+            " \"Code\" TEXT NOT NULL," +
+            " \"CreatedBy\" INTEGER NOT NULL," +
+            " \"CreatedAt\" TEXT NOT NULL," +
+            " \"ExpiresAt\" TEXT NULL," +
+            " \"MaxUses\" INTEGER NULL," +
+            " \"Uses\" INTEGER NOT NULL DEFAULT 0," +
+            " CONSTRAINT \"FK_InviteLinks_Albums_AlbumId\" FOREIGN KEY (\"AlbumId\") REFERENCES \"Albums\" (\"Id\") ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS \"IX_InviteLinks_AlbumId\" ON \"InviteLinks\" (\"AlbumId\")",
+            "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_InviteLinks_Code\" ON \"InviteLinks\" (\"Code\")",
+
+            // existing shared codes keep working: unlimited links created by the owner
+            "INSERT INTO \"InviteLinks\" (\"AlbumId\", \"Code\", \"CreatedBy\", \"CreatedAt\", \"ExpiresAt\", \"MaxUses\", \"Uses\")" +
+            " SELECT \"Id\", \"AccessCode\", \"OwnerId\", strftime('%Y-%m-%d %H:%M:%S', 'now'), NULL, NULL," +
+            " (SELECT COUNT(*) FROM \"Access\" WHERE \"Access\".\"AlbumId\" = \"Albums\".\"Id\")" +
+            " FROM \"Albums\" WHERE \"IsOpen\" = 1 AND \"AccessCode\" IS NOT NULL",
+
+            "ALTER TABLE \"Access\" ADD COLUMN \"Role\" INTEGER NOT NULL DEFAULT 0", // every viewer becomes a member
+            "ALTER TABLE \"BotUsers\" ADD COLUMN \"Name\" TEXT NULL",
+
+            "DROP INDEX IF EXISTS \"IX_Albums_AccessCode\"",
+            "ALTER TABLE \"Albums\" DROP COLUMN \"AccessCode\"",
+            "ALTER TABLE \"Albums\" DROP COLUMN \"IsOpen\"",
+        };
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+        foreach (var sql in steps) await db.Database.ExecuteSqlRawAsync(sql);
+        await db.Database.ExecuteSqlRawAsync("PRAGMA user_version = 4");
+        await tx.CommitAsync();
     }
 }

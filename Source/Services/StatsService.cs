@@ -24,8 +24,8 @@ public static class StatKeys
 {
     public const string AlbumsCreated = "albums_created";
     public const string AlbumsDeleted = "albums_deleted";
-    public const string AlbumsOpened = "albums_opened";
-    public const string AlbumsClosed = "albums_closed";
+    public const string InvitesCreated = "invites_created";
+    public const string ForwardInvites = "forward_invites";
     public const string MediaAdded = "media_added";
     public const string MediaDeleted = "media_deleted";
     public const string ViewsTotal = "views_total";
@@ -59,12 +59,12 @@ public sealed class TopAlbum
 public sealed class GlobalStats
 {
     public int Users, ActiveUsers24h, ActiveUsers7d, NewUsers7d;
-    public int Albums, OpenAlbums, AlbumsCreated7d, ViewerGrants;
+    public int Albums, SharedAlbums, AlbumsCreated7d, Memberships, Managers;
     public int Media, Photos, Videos, MediaAdded7d, LargestAlbum;
     public double AvgMediaPerAlbum;
     public long ViewsTotal, RandomViewsTotal, PagesTotal;
     public long AlbumsCreatedTotal, AlbumsDeletedTotal, MediaAddedTotal, MediaDeletedTotal;
-    public long CodeJoins, CodeFailures, CodeThrottled, AlbumsOpenedTimes;
+    public long CodeJoins, CodeFailures, CodeThrottled, InvitesCreatedTotal;
     public List<TopAlbum> Top { get; set; } = new();
     public DateTime Now;
 }
@@ -91,8 +91,8 @@ public sealed class StatsService
         catch (Exception ex) { Console.Error.WriteLine($"Stats: increment '{key}' failed: {ex.Message}"); }
     }
 
-    /// <summary>Marks the user as seen. Writes at most once per five minutes per user.</summary>
-    public async Task TouchUserAsync(long userId)
+    /// <summary>Marks the user as seen and stores their display name. Writes at most once per five minutes per user.</summary>
+    public async Task TouchUserAsync(long userId, string name)
     {
         var now = DateTime.UtcNow;
         while (true)
@@ -114,9 +114,21 @@ public sealed class StatsService
         {
             await using var db = await _factory.CreateDbContextAsync();
             await db.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO BotUsers (UserId, FirstSeenAt, LastSeenAt) VALUES ({userId}, {now}, {now}) ON CONFLICT(UserId) DO UPDATE SET LastSeenAt = {now}");
+                $"INSERT INTO BotUsers (UserId, Name, FirstSeenAt, LastSeenAt) VALUES ({userId}, {name}, {now}, {now}) ON CONFLICT(UserId) DO UPDATE SET LastSeenAt = {now}, Name = COALESCE({name}, Name)");
         }
         catch (Exception ex) { Console.Error.WriteLine($"Stats: touch user failed: {ex.Message}"); }
+    }
+
+    /// <summary>Updates the name of a known user (e.g. seen in a forwarded message). Never adds a user.</summary>
+    public async Task RefreshNameAsync(long userId, string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        try
+        {
+            await using var db = await _factory.CreateDbContextAsync();
+            await db.BotUsers.Where(u => u.UserId == userId).ExecuteUpdateAsync(x => x.SetProperty(u => u.Name, name));
+        }
+        catch (Exception ex) { Console.Error.WriteLine($"Stats: refresh name failed: {ex.Message}"); }
     }
 
     /// <summary>Records an ordered or random view opening.</summary>
@@ -216,9 +228,10 @@ public sealed class StatsService
         s.ActiveUsers7d = await db.BotUsers.CountAsync(u => u.LastSeenAt >= weekAgo);
         s.NewUsers7d = await db.BotUsers.CountAsync(u => u.FirstSeenAt >= weekAgo);
         s.Albums = await db.Albums.CountAsync();
-        s.OpenAlbums = await db.Albums.CountAsync(a => a.IsOpen);
+        s.SharedAlbums = await db.Albums.CountAsync(a => db.Access.Any(x => x.AlbumId == a.Id));
         s.AlbumsCreated7d = await db.Albums.CountAsync(a => a.CreatedAt >= weekAgo);
-        s.ViewerGrants = await db.Access.CountAsync();
+        s.Memberships = await db.Access.CountAsync();
+        s.Managers = await db.Access.CountAsync(x => x.Role == AlbumRole.Manager);
         s.Media = await db.Media.CountAsync();
         s.Photos = await db.Media.CountAsync(m => m.Kind == MediaKind.Photo);
         s.Videos = await db.Media.CountAsync(m => m.Kind == MediaKind.Video);
@@ -237,7 +250,7 @@ public sealed class StatsService
         s.CodeJoins = Count(StatKeys.CodeJoins);
         s.CodeFailures = Count(StatKeys.CodeFailures);
         s.CodeThrottled = Count(StatKeys.CodeThrottled);
-        s.AlbumsOpenedTimes = Count(StatKeys.AlbumsOpened);
+        s.InvitesCreatedTotal = Count(StatKeys.InvitesCreated);
 
         var top = await db.AlbumViewStats.AsNoTracking()
             .GroupBy(x => x.AlbumId)

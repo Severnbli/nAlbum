@@ -40,7 +40,7 @@ public sealed class AddMediaScreen : Screen
         if (Ctx.Session.Mode == Mode.Adding && text == Ctx.T(LocKey.ButtonDone))
         {
             var album = await Ctx.Albums.GetAlbum(Ctx.Session.AlbumId);
-            if (album == null || album.OwnerId != Ctx.UserId)
+            if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId))
             {
                 Ctx.Session.Mode = Mode.Idle;
                 return;
@@ -59,7 +59,7 @@ public sealed class AddMediaScreen : Screen
         {
             case "add":
             {
-                var album = await Ctx.Ui.OwnedAlbum(m, p);
+                var album = await Ctx.Ui.ManagedAlbum(m, p);
                 if (album == null) return;
                 await m.ConfirmAction();
                 await Ctx.Ui.TryDelete(m.MessageId);
@@ -82,7 +82,7 @@ public sealed class AddMediaScreen : Screen
 
             case "done":
             {
-                var album = await Ctx.Ui.OwnedAlbum(m, p);
+                var album = await Ctx.Ui.ManagedAlbum(m, p);
                 if (album == null) return;
                 await m.ConfirmAction();
                 await FinishAdding(m, album);

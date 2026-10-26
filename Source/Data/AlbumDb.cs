@@ -27,6 +27,7 @@ public class AlbumDb : DbContext
     public DbSet<Album> Albums => Set<Album>();
     public DbSet<MediaItem> Media => Set<MediaItem>();
     public DbSet<AlbumAccess> Access => Set<AlbumAccess>();
+    public DbSet<InviteLink> InviteLinks => Set<InviteLink>();
     public DbSet<BotUser> BotUsers => Set<BotUser>();
     public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
     public DbSet<AlbumViewStat> AlbumViewStats => Set<AlbumViewStat>();
@@ -39,7 +40,6 @@ public class AlbumDb : DbContext
             e.Property(x => x.Title).IsRequired().HasMaxLength(100);
             e.Property(x => x.NextNumber).HasDefaultValue(1);
             e.HasIndex(x => new { x.OwnerId, x.Id });
-            e.HasIndex(x => x.AccessCode).IsUnique(); // SQLite allows many NULLs in a unique index
         });
 
         b.Entity<MediaItem>(e =>
@@ -86,8 +86,18 @@ public class AlbumDb : DbContext
         b.Entity<AlbumAccess>(e =>
         {
             e.HasKey(x => new { x.AlbumId, x.UserId });
+            e.Property(x => x.Role).HasConversion<int>().HasDefaultValue(AlbumRole.Member);
             e.HasOne<Album>().WithMany().HasForeignKey(x => x.AlbumId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.UserId);
+        });
+
+        b.Entity<InviteLink>(e =>
+        {
+            e.Property(x => x.Code).IsRequired();
+            e.Property(x => x.Uses).HasDefaultValue(0);
+            e.HasOne<Album>().WithMany().HasForeignKey(x => x.AlbumId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.Code).IsUnique();
+            e.HasIndex(x => x.AlbumId);
         });
     }
 }

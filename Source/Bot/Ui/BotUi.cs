@@ -208,7 +208,7 @@ public sealed class BotUi
         var bf = new ButtonForm();
         foreach (var it in items)
         {
-            var icon = kind == "mine" ? (it.Album.IsOpen ? "🔓" : "🔒") : "📁";
+            var icon = RoleIcon(it.Role);
             bf.AddButtonRow($"{icon} {Text.Truncate(it.Album.Title, 40)} ({it.MediaCount})", $"al:{it.Album.Id}");
         }
 
@@ -222,11 +222,34 @@ public sealed class BotUi
         await Show(m, text, bf);
     }
 
+    public static string RoleIcon(AlbumRole role) => role switch
+    {
+        AlbumRole.Owner => "👑",
+        AlbumRole.Manager => "🛠",
+        _ => "📁"
+    };
+
+    public string RoleName(AlbumRole role) => Ctx.T(role switch
+    {
+        AlbumRole.Owner => LocKey.RoleOwner,
+        AlbumRole.Manager => LocKey.RoleManager,
+        _ => LocKey.RoleMember
+    });
+
     public async Task<Album> OwnedAlbum(MessageResult m, string[] p)
     {
         var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
         if (album != null && album.OwnerId == Ctx.UserId) return album;
         await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumNotOwned), true);
+        return null;
+    }
+
+    /// <summary>The album from the callback if the user is its manager or owner.</summary>
+    public async Task<Album> ManagedAlbum(MessageResult m, string[] p)
+    {
+        var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
+        if (album != null && await Ctx.Albums.CanManage(album, Ctx.UserId)) return album;
+        await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
         return null;
     }
 
