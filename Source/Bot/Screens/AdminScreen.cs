@@ -137,10 +137,8 @@ public sealed class AdminScreen : Screen
         foreach (var it in items)
             bf.AddButtonRow($"#{it.Album.Id} {Text.Truncate(it.Album.Title, 36)} ({it.MediaCount})", $"aa:{it.Album.Id}:{page}");
 
-        var nav = new List<ButtonBase>();
-        if (page > 0) nav.Add(new ButtonBase("◀", $"aal:{page - 1}"));
-        if ((page + 1) * ListPage < total) nav.Add(new ButtonBase("▶", $"aal:{page + 1}"));
-        if (nav.Count > 0) bf.AddButtonRow(nav.ToArray());
+        var nav = BotUi.PageRow(page, total, ListPage, n => $"aal:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "admin");
         await Ctx.Ui.Show(m, text, bf);
     }

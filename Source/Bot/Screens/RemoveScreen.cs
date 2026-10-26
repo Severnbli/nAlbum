@@ -231,10 +231,8 @@ public sealed class RemoveScreen : Screen
 
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
 
-        var navRow = new List<ButtonBase>();
-        if (offset > 0) navRow.Add(new ButtonBase(Ctx.T(LocKey.ButtonPrev), $"rmp:{album.Id}:{Math.Max(offset - ViewPage, 0)}"));
-        if (offset + ViewPage < r.Pending.Count) navRow.Add(new ButtonBase(Ctx.T(LocKey.ButtonNext), $"rmp:{album.Id}:{offset + ViewPage}"));
-        if (navRow.Count > 0) bf.AddButtonRow(navRow.ToArray());
+        var navRow = BotUi.PageRow(offset / ViewPage, r.Pending.Count, ViewPage, n => $"rmp:{album.Id}:{n * ViewPage}");
+        if (navRow != null) bf.AddButtonRow(navRow);
 
         var actions = new List<ButtonBase>();
         if (toDelete > 0) actions.Add(new ButtonBase(Ctx.F(LocKey.ButtonDeleteCount, toDelete), $"rmy:{album.Id}"));

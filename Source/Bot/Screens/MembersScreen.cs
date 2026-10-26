@@ -163,10 +163,8 @@ public sealed class MembersScreen : Screen
         }
 
         var cb = transfer ? "mxf" : "mem";
-        var nav = new List<ButtonBase>();
-        if (page > 0) nav.Add(new ButtonBase("◀", $"{cb}:{album.Id}:{page - 1}"));
-        if ((page + 1) * ListPage < total) nav.Add(new ButtonBase("▶", $"{cb}:{album.Id}:{page + 1}"));
-        if (nav.Count > 0) bf.AddButtonRow(nav.ToArray());
+        var nav = BotUi.PageRow(page, total, ListPage, n => $"{cb}:{album.Id}:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), $"mg:{album.Id}");
         await Ctx.Ui.Show(m, text, bf);
     }
@@ -300,10 +298,8 @@ public sealed class MembersScreen : Screen
 
         if (note != null) text = note + "\n\n" + text;
         if (deleteRow.Count > 0) bf.AddButtonRow(deleteRow.ToArray());
-        var nav = new List<ButtonBase>();
-        if (page > 0) nav.Add(new ButtonBase("◀", $"inv:{album.Id}:{page - 1}"));
-        if ((page + 1) * InvitePage < total) nav.Add(new ButtonBase("▶", $"inv:{album.Id}:{page + 1}"));
-        if (nav.Count > 0) bf.AddButtonRow(nav.ToArray());
+        var nav = BotUi.PageRow(page, total, InvitePage, n => $"inv:{album.Id}:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonNewInvite), $"invn:{album.Id}");
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), $"mg:{album.Id}");
         await Ctx.Ui.Show(m, text, bf);

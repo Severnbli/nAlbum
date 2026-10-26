@@ -165,6 +165,25 @@ public sealed class BotUi
         return await pick.Take(ticket);
     }
 
+    /// <summary>
+    /// Navigation row of a paged list: ⏮ ◀ page/pages ▶ ⏭. Jumps to the edges appear only when they skip pages;
+    /// the counter button does nothing. Null when everything fits on one page.
+    /// </summary>
+    public static ButtonBase[] PageRow(int page, int total, int pageSize, Func<int, string> callback)
+    {
+        var pages = Math.Max((total + pageSize - 1) / pageSize, 1);
+        if (pages <= 1) return null;
+        page = Math.Clamp(page, 0, pages - 1);
+
+        var row = new List<ButtonBase>();
+        if (page > 1) row.Add(new ButtonBase("⏮", callback(0)));
+        if (page > 0) row.Add(new ButtonBase("◀", callback(page - 1)));
+        row.Add(new ButtonBase($"{page + 1}/{pages}", "noop"));
+        if (page < pages - 1) row.Add(new ButtonBase("▶", callback(page + 1)));
+        if (page < pages - 2) row.Add(new ButtonBase("⏭", callback(pages - 1)));
+        return row.ToArray();
+    }
+
     public ButtonForm MenuButtons()
     {
         var bf = new ButtonForm();
@@ -212,10 +231,8 @@ public sealed class BotUi
             bf.AddButtonRow($"{icon} {Text.Truncate(it.Album.Title, 40)} ({it.MediaCount})", $"al:{it.Album.Id}");
         }
 
-        var nav = new List<ButtonBase>();
-        if (page > 0) nav.Add(new ButtonBase("◀", $"{kind}:{page - 1}"));
-        if ((page + 1) * ListPage < total) nav.Add(new ButtonBase("▶", $"{kind}:{page + 1}"));
-        if (nav.Count > 0) bf.AddButtonRow(nav.ToArray());
+        var nav = PageRow(page, total, ListPage, n => $"{kind}:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
         if (kind == "mine") bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "albums");
 
