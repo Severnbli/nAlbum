@@ -112,9 +112,9 @@ public sealed class AddMediaScreen : Screen
 
             add.Pending[msg.MessageId] = pending;
 
-            // Telegram applies a reaction on any item of a media group to the first message of the group,
-            // so react once per group.
-            if (msg.MediaGroupId == null || FirstOfGroup(msg)) await React(msg.MessageId, "❤️");
+            // Telegram shows an album's reaction from its first message, but the group's updates can arrive
+            // in any order, so react again whenever an earlier message of the group shows up.
+            if (msg.MediaGroupId == null || IsEarliestOfGroup(msg)) await React(msg.MessageId, "❤️");
         }
         finally
         {
@@ -313,16 +313,33 @@ public sealed class AddMediaScreen : Screen
         return Ctx.Session.Add.SeenMediaGroups.Add(msg.MediaGroupId);
     }
 
+    private bool IsEarliestOfGroup(Message msg)
+    {
+        var reacted = Ctx.Session.Add.ReactedMediaGroups;
+        if (reacted.TryGetValue(msg.MediaGroupId, out var earliest) && earliest <= msg.MessageId) return false;
+        reacted[msg.MediaGroupId] = msg.MessageId;
+        return true;
+    }
+
     private async Task React(int messageId, string emoji)
     {
-        try
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            await Ctx.Device.Dispatch(a => a.SetMessageReaction(
-                Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = emoji }]));
-        }
-        catch (ApiRequestException)
-        {
-            // reactions are a nicety; ignore failures
+            try
+            {
+                await Ctx.Device.Dispatch(a => a.SetMessageReaction(
+                    Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = emoji }]));
+                return;
+            }
+            catch (ApiRequestException ex) when (ex.ErrorCode == 429 && attempt == 0)
+            {
+                // albums trigger a burst of requests; wait out the limit once instead of dropping the reaction
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(ex.Parameters?.RetryAfter ?? 3, 30) + 1));
+            }
+            catch (ApiRequestException)
+            {
+                return;   // reactions are a nicety; ignore failures
+            }
         }
     }
 }

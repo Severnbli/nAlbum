@@ -39,6 +39,7 @@ public sealed class AddState
     public int Added;                 // was _added
     public int Skipped;               // was _skipped
     public HashSet<string> SeenMediaGroups { get; } = new();
+    public Dictionary<string, int> ReactedMediaGroups { get; } = new();   // media group id -> lowest message id reacted to
     public int Removed;               // media deleted from the chat before Done
     public int PromptMessageId;
     public int KeyboardMessageId;
@@ -53,6 +54,7 @@ public sealed class AddState
         Added = Skipped = Removed = PromptMessageId = KeyboardMessageId = 0;
         PromptText = null;
         SeenMediaGroups.Clear();
+        ReactedMediaGroups.Clear();
         Pending.Clear();
         UnsupportedHandled.Clear();
         UserMessages.Clear();
