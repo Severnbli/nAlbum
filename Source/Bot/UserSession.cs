@@ -19,12 +19,14 @@ using nAlbum.Data;
 
 namespace nAlbum.Bot;
 
-public enum Mode { Idle, NewTitle, Rename, Adding, Removing, RemovePrompt, GoToNumber }
+public enum Mode { Idle, NewTitle, Rename, Adding, Removing, RemovePrompt, GoToNumber, InviteForward, SongUpload, Broadcast }
 
 public sealed class UserSession
 {
     public Mode Mode { get; set; } = Mode.Idle;
     public long AlbumId { get; set; }                 // was _albumId
+    public int MenuMessageId { get; set; }            // the single message with menu buttons (card, list, prompt)
+    public int BroadcastMessageId { get; set; }       // admin's message waiting for broadcast confirmation
     public AddState Add { get; } = new();
     public ViewState View { get; } = new();
     public RemovalState Removal { get; } = new();

@@ -26,14 +26,15 @@ public sealed class AlbumScreen : Screen
 {
     public AlbumScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "al", "new", "toggle", "ren", "del", "delok" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "al", "mg", "new", "ren", "del", "delok" };
     public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.NewTitle, Mode.Rename };
     public override IReadOnlyCollection<string> Commands => new[] { "/new" };
 
-    public override Task OnCommand(MessageResult m, string command, IReadOnlyList<string> args) => StartNew();
+    public override Task OnCommand(MessageResult m, string command, IReadOnlyList<string> args) => StartNew(m);
 
     public override async Task OnText(MessageResult m, string text)
     {
+        await Ctx.Ui.TryDelete(m.MessageId); // the prompt is replaced by the result, keep the chat tidy
         switch (Ctx.Session.Mode)
         {
             case Mode.NewTitle:
@@ -41,7 +42,7 @@ public sealed class AlbumScreen : Screen
                 var title = Text.CleanTitle(text);
                 if (title.Length == 0)
                 {
-                    await Ctx.Ui.Say(Ctx.T(LocKey.AlbumTitleEmpty));
+                    await Ctx.Ui.ShowMenu(Ctx.T(LocKey.AlbumTitleEmpty), NewCancelButtons());
                     return;
                 }
 
@@ -58,13 +59,13 @@ public sealed class AlbumScreen : Screen
                 var title = Text.CleanTitle(text);
                 if (title.Length == 0)
                 {
-                    await Ctx.Ui.Say(Ctx.T(LocKey.AlbumTitleEmpty));
+                    await Ctx.Ui.ShowMenu(Ctx.T(LocKey.AlbumTitleEmpty), CancelButtons(Ctx.Session.AlbumId));
                     return;
                 }
 
                 Ctx.Session.Mode = Mode.Idle;
                 var album = await Ctx.Albums.GetAlbum(Ctx.Session.AlbumId);
-                if (album == null || album.OwnerId != Ctx.UserId) return;
+                if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId)) return;
                 await Ctx.Albums.Rename(album.Id, title);
                 album.Title = title;
                 var (card, bf) = await Ctx.Cards.Build(album);
@@ -80,7 +81,7 @@ public sealed class AlbumScreen : Screen
         {
             case "new":
                 await m.ConfirmAction();
-                await StartNew();
+                await StartNew(m);
                 break;
 
             case "al":
@@ -95,18 +96,25 @@ public sealed class AlbumScreen : Screen
                 break;
             }
 
-            case "toggle":
-                await OnToggle(m, p);
+            case "mg":
+            {
+                Ctx.Session.Mode = Mode.Idle;
+                var album = await Ctx.Ui.ManagedAlbum(m, p);
+                if (album == null) return;
+                await m.ConfirmAction();
+                var (text, bf) = await Ctx.Cards.BuildManage(album);
+                await Ctx.Ui.Show(m, text, bf);
                 break;
+            }
 
             case "ren":
             {
-                var album = await Ctx.Ui.OwnedAlbum(m, p);
+                var album = await Ctx.Ui.ManagedAlbum(m, p);
                 if (album == null) return;
                 await m.ConfirmAction();
                 Ctx.Session.Mode = Mode.Rename;
                 Ctx.Session.AlbumId = album.Id;
-                await Ctx.Ui.Say(Ctx.T(LocKey.AlbumRenamePrompt));
+                await Ctx.Ui.Show(m, Ctx.T(LocKey.AlbumRenamePrompt), CancelButtons(album.Id));
                 break;
             }
 
@@ -116,7 +124,7 @@ public sealed class AlbumScreen : Screen
                 if (album == null) return;
                 await m.ConfirmAction();
                 var bf = new ButtonForm();
-                bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonConfirmDelete), $"delok:{album.Id}"), new ButtonBase(Ctx.T(LocKey.ButtonCancel), $"al:{album.Id}"));
+                bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonConfirmDelete), $"delok:{album.Id}"), new ButtonBase(Ctx.T(LocKey.ButtonCancel), $"mg:{album.Id}"));
                 await Ctx.Ui.Show(m, Ctx.F(LocKey.AlbumDeleteConfirm, Text.H(album.Title)), bf);
                 break;
             }
@@ -135,39 +143,23 @@ public sealed class AlbumScreen : Screen
         }
     }
 
-    private async Task StartNew()
+    private async Task StartNew(MessageResult m)
     {
         Ctx.Session.Mode = Mode.NewTitle;
-        await Ctx.Ui.Say(Ctx.T(LocKey.AlbumTitlePrompt));
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.AlbumTitlePrompt), NewCancelButtons());
     }
 
-    private async Task OnToggle(MessageResult m, string[] p)
+    private ButtonForm NewCancelButtons()
     {
-        var album = await Ctx.Ui.OwnedAlbum(m, p);
-        if (album == null) return;
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), "albums");
+        return bf;
+    }
 
-        string code = null;
-        if (album.IsOpen)
-        {
-            await Ctx.Albums.CloseAlbum(album.Id);
-            await Ctx.Stats.IncrementAsync(StatKeys.AlbumsClosed);
-            await m.ConfirmAction(Ctx.T(LocKey.AlbumClosed), true);
-        }
-        else
-        {
-            code = await Ctx.Albums.OpenAlbum(album.Id);
-            await Ctx.Stats.IncrementAsync(StatKeys.AlbumsOpened);
-            await m.ConfirmAction(Ctx.T(LocKey.AlbumOpened));
-        }
-
-        album = await Ctx.Albums.GetAlbum(album.Id);
-        var (card, bf) = await Ctx.Cards.Build(album);
-        await Ctx.Ui.Show(m, card, bf);
-
-        if (code != null)
-        {
-            await Ctx.Ui.Say(Ctx.F(LocKey.AlbumOpenedInfo,
-                Text.H(album.Title), code, BotInfo.Username));
-        }
+    private ButtonForm CancelButtons(long albumId)
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), $"mg:{albumId}");
+        return bf;
     }
 }

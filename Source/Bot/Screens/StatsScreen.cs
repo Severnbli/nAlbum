@@ -73,7 +73,7 @@ public sealed class StatsScreen : Screen
         {
             var stats = await Ctx.Stats.GetGlobalStatsAsync();
             var buttons = new ButtonForm();
-            buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonRefresh), "stats"), new ButtonBase(Ctx.T(LocKey.ButtonMenu), "menu"));
+            buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonRefresh), "stats"), new ButtonBase(Ctx.T(LocKey.ButtonBack), "admin"));
             await Ctx.Ui.Show(m, Format(stats), buttons);
         }
         catch (Exception ex)
@@ -92,11 +92,12 @@ public sealed class StatsScreen : Screen
 
         return Ctx.F(
             LocKey.StatsReport,
-            Text.N(s.Users), Text.N(s.Albums), Text.N(s.OpenAlbums), Text.N(s.Media), Text.N(s.Photos),
+            Text.N(s.Users), Text.N(s.Albums), Text.N(s.SharedAlbums), Text.N(s.Media), Text.N(s.Photos),
             Text.N(s.Videos), s.AvgMediaPerAlbum, Text.N(s.LargestAlbum),
-            Text.N(s.ViewerGrants), Text.N(s.CodeJoins), Text.N(s.CodeFailures), Text.N(s.CodeThrottled),
+            Text.N(s.Memberships), Text.N(s.CodeJoins), Text.N(s.CodeFailures), Text.N(s.CodeThrottled),
             Text.N(s.ViewsTotal + s.RandomViewsTotal), Text.N(s.ViewsTotal), Text.N(s.RandomViewsTotal),
             Text.N(s.PagesTotal), Text.N(s.AlbumsCreatedTotal), Text.N(s.MediaAddedTotal),
-            Text.N(s.AlbumsDeletedTotal), Text.N(s.MediaDeletedTotal), Text.N(s.AlbumsOpenedTimes), top);
+            Text.N(s.AlbumsDeletedTotal), Text.N(s.MediaDeletedTotal), Text.N(s.InvitesCreatedTotal), top,
+            Text.N(s.Managers));
     }
 }

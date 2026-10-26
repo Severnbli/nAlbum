@@ -40,7 +40,7 @@ public sealed class AddMediaScreen : Screen
         if (Ctx.Session.Mode == Mode.Adding && text == Ctx.T(LocKey.ButtonDone))
         {
             var album = await Ctx.Albums.GetAlbum(Ctx.Session.AlbumId);
-            if (album == null || album.OwnerId != Ctx.UserId)
+            if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId))
             {
                 Ctx.Session.Mode = Mode.Idle;
                 return;
@@ -59,7 +59,7 @@ public sealed class AddMediaScreen : Screen
         {
             case "add":
             {
-                var album = await Ctx.Ui.OwnedAlbum(m, p);
+                var album = await Ctx.Ui.ManagedAlbum(m, p);
                 if (album == null) return;
                 await m.ConfirmAction();
                 await Ctx.Ui.TryDelete(m.MessageId);
@@ -82,7 +82,7 @@ public sealed class AddMediaScreen : Screen
 
             case "done":
             {
-                var album = await Ctx.Ui.OwnedAlbum(m, p);
+                var album = await Ctx.Ui.ManagedAlbum(m, p);
                 if (album == null) return;
                 await m.ConfirmAction();
                 await FinishAdding(m, album);
@@ -164,6 +164,25 @@ public sealed class AddMediaScreen : Screen
         var keyboardMessage = await Ctx.Device.Dispatch(a => a.SendMessage(Ctx.Device.DeviceId,
             Ctx.T(LocKey.AddKeyboardHint), parseMode: ParseMode.Html, replyMarkup: keyboard));
         Ctx.Session.Add.KeyboardMessageId = keyboardMessage?.MessageId ?? 0;
+    }
+
+    /// <summary>Leaves the adding flow without saving (a command was sent); removes the prompt and the keyboard.</summary>
+    public async Task Abort()
+    {
+        var add = Ctx.Session.Add;
+        await add.Gate.WaitAsync();
+        try
+        {
+            if (Ctx.Session.Mode != Mode.Adding) return;
+            Ctx.Session.Mode = Mode.Idle;
+            if (add.PromptMessageId != 0) await Ctx.Ui.TryDelete(add.PromptMessageId);
+            if (add.KeyboardMessageId != 0) await Ctx.Ui.TryDelete(add.KeyboardMessageId);
+            add.Reset();
+        }
+        finally
+        {
+            add.Gate.Release();
+        }
     }
 
     private async Task FinishAdding(MessageResult m, Album album)

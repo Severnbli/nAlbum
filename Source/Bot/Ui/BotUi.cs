@@ -35,10 +35,30 @@ public sealed class BotUi
     public BotUi(BotContext ctx) { Ctx = ctx; }
     private BotContext Ctx { get; }
 
-    /// <summary>Sends a new HTML message.</summary>
-    public Task<Message> Say(string html, ButtonForm bf = null) =>
+    /// <summary>
+    /// Sends a new HTML message. A message with buttons becomes the menu message and replaces the previous one,
+    /// so the chat never holds two live menus.
+    /// </summary>
+    public async Task<Message> Say(string html, ButtonForm bf = null)
+    {
+        var msg = await SayNav(html, bf);
+        if (bf != null && msg != null) await ReplaceMenu(msg.MessageId);
+        return msg;
+    }
+
+    /// <summary>Sends a message that is not tracked as the menu (view navigation messages).</summary>
+    public Task<Message> SayNav(string html, ButtonForm bf = null) =>
         Ctx.Device.Dispatch(a => a.SendMessage(Ctx.Device.DeviceId, html, parseMode: ParseMode.Html,
             replyMarkup: Markup(bf), linkPreviewOptions: NoLinkPreview));
+
+    /// <summary>Makes messageId the menu message and deletes the previous one (unless it is the view navigation).</summary>
+    private async Task ReplaceMenu(int messageId)
+    {
+        var s = Ctx.Session;
+        var previous = s.MenuMessageId;
+        s.MenuMessageId = messageId;
+        if (previous != 0 && previous != messageId && previous != s.View.NavId) await TryDelete(previous);
+    }
 
     private static readonly LinkPreviewOptions NoLinkPreview = new() { IsDisabled = true };
 
@@ -57,6 +77,32 @@ public sealed class BotUi
             try
             {
                 await EditText(m.MessageId, html, bf);
+                await ReplaceMenu(m.MessageId);
+                return;
+            }
+            catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
+            {
+                await ReplaceMenu(m.MessageId);
+                return;
+            }
+            catch (ApiRequestException)
+            {
+                // message too old / not editable -> send a fresh one
+            }
+        }
+
+        await Say(html, bf);
+    }
+
+    /// <summary>Edits the current menu message (e.g. a prompt after invalid input); falls back to a new message.</summary>
+    public async Task ShowMenu(string html, ButtonForm bf)
+    {
+        var id = Ctx.Session.MenuMessageId;
+        if (id != 0)
+        {
+            try
+            {
+                await EditText(id, html, bf);
                 return;
             }
             catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
@@ -65,7 +111,7 @@ public sealed class BotUi
             }
             catch (ApiRequestException)
             {
-                // message too old / not editable -> send a fresh one
+                // menu message is gone -> send a fresh one
             }
         }
 
@@ -89,7 +135,7 @@ public sealed class BotUi
         var v = Ctx.Session.View;
         if (v.NavId == 0)
         {
-            v.NavId = (await Say(html, bf))?.MessageId ?? 0;
+            v.NavId = (await SayNav(html, bf))?.MessageId ?? 0;
             return;
         }
 
@@ -119,15 +165,42 @@ public sealed class BotUi
         return await pick.Take(ticket);
     }
 
+    /// <summary>
+    /// Navigation row of a paged list: ⏮ ◀ page/pages ▶ ⏭. Jumps to the edges appear only when they skip pages;
+    /// the counter button does nothing. Null when everything fits on one page.
+    /// </summary>
+    public static ButtonBase[] PageRow(int page, int total, int pageSize, Func<int, string> callback)
+    {
+        var pages = Math.Max((total + pageSize - 1) / pageSize, 1);
+        if (pages <= 1) return null;
+        page = Math.Clamp(page, 0, pages - 1);
+
+        var row = new List<ButtonBase>();
+        if (page > 1) row.Add(new ButtonBase("⏮", callback(0)));
+        if (page > 0) row.Add(new ButtonBase("◀", callback(page - 1)));
+        row.Add(new ButtonBase($"{page + 1}/{pages}", "noop"));
+        if (page < pages - 1) row.Add(new ButtonBase("▶", callback(page + 1)));
+        if (page < pages - 2) row.Add(new ButtonBase("⏭", callback(pages - 1)));
+        return row.ToArray();
+    }
+
     public ButtonForm MenuButtons()
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
-        bf.AddButtonRow(Ctx.T(LocKey.MenuMyAlbums), "mine:0");
-        bf.AddButtonRow(Ctx.T(LocKey.MenuSharedWithMe), "shared:0");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuAlbums), "albums");
         bf.AddButtonRow(Ctx.T(LocKey.MenuGlobalStatistics), "gstats");
-        if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuDetailedStatistics), "stats");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuHelp), "help"), new ButtonBase(Ctx.T(LocKey.MenuPrivacy), "privacy"));
         bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
+        if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuAdminPanel), "admin");
+        return bf;
+    }
+
+    public ButtonForm AlbumsButtons()
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuMyAlbums), "mine:0"), new ButtonBase(Ctx.T(LocKey.MenuSharedWithMe), "shared:0"));
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
         return bf;
     }
 
@@ -155,25 +228,46 @@ public sealed class BotUi
         var bf = new ButtonForm();
         foreach (var it in items)
         {
-            var icon = kind == "mine" ? (it.Album.IsOpen ? "🔓" : "🔒") : "📁";
+            var icon = RoleIcon(it.Role);
             bf.AddButtonRow($"{icon} {Text.Truncate(it.Album.Title, 40)} ({it.MediaCount})", $"al:{it.Album.Id}");
         }
 
-        var nav = new List<ButtonBase>();
-        if (page > 0) nav.Add(new ButtonBase("◀", $"{kind}:{page - 1}"));
-        if ((page + 1) * ListPage < total) nav.Add(new ButtonBase("▶", $"{kind}:{page + 1}"));
-        if (nav.Count > 0) bf.AddButtonRow(nav.ToArray());
+        var nav = PageRow(page, total, ListPage, n => $"{kind}:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
         if (kind == "mine") bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "albums");
 
         await Show(m, text, bf);
     }
+
+    public static string RoleIcon(AlbumRole role) => role switch
+    {
+        AlbumRole.Owner => "👑",
+        AlbumRole.Manager => "🛠",
+        _ => "📁"
+    };
+
+    public string RoleName(AlbumRole role) => Ctx.T(role switch
+    {
+        AlbumRole.Owner => LocKey.RoleOwner,
+        AlbumRole.Manager => LocKey.RoleManager,
+        _ => LocKey.RoleMember
+    });
 
     public async Task<Album> OwnedAlbum(MessageResult m, string[] p)
     {
         var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
         if (album != null && album.OwnerId == Ctx.UserId) return album;
         await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumNotOwned), true);
+        return null;
+    }
+
+    /// <summary>The album from the callback if the user is its manager or owner.</summary>
+    public async Task<Album> ManagedAlbum(MessageResult m, string[] p)
+    {
+        var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
+        if (album != null && await Ctx.Albums.CanManage(album, Ctx.UserId)) return album;
+        await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
         return null;
     }
 

@@ -30,42 +30,45 @@ public sealed class AlbumCard
     {
         var count = await Ctx.Media.MediaCount(album.Id);
         var watch = await Ctx.Stats.GetAlbumWatchAsync(album.Id);
-        var isOwner = album.OwnerId == Ctx.UserId;
+        var role = await Ctx.Albums.GetRole(album, Ctx.UserId) ?? AlbumRole.Member;
+        var manager = role >= AlbumRole.Manager;
 
         var sb = new StringBuilder();
         sb.Append($"📁 <b>{Text.H(album.Title)}</b>");
         var details = new List<string>();
         if (watch != null) details.Add(Ctx.F(LocKey.CardViewStats, Text.N(watch.Views), Text.N(watch.Pages)));
         var media = Ctx.F(LocKey.CardMedia, count);
-        if (isOwner && album.NextNumber > 1)
+        if (manager && album.NextNumber > 1)
             media += Ctx.F(LocKey.CardLastNumber, album.NextNumber - 1);
         details.Add(media);
         sb.Append("\n➖➖➖\n").Append(string.Join("\n", details));
+        sb.Append("\n➖➖➖\n").Append(Ctx.F(LocKey.CardRole, Ctx.Ui.RoleName(role)));
+        if (manager) sb.Append('\n').Append(Ctx.F(LocKey.CardMembers, await Ctx.Albums.MemberCount(album.Id) + 1));
 
         var bf = new ButtonForm();
-        if (!isOwner)
-        {
-            bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonView), $"view:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonRandom), $"rnd:{album.Id}"));
-            bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonLeave), $"leave:{album.Id}"), new ButtonBase(Ctx.T(LocKey.ButtonBack), "shared:0"));
-            return (sb.ToString(), bf);
-        }
-
-        if (album.IsOpen)
-        {
-            sb.Append("\n➖➖➖\n").Append(Ctx.F(LocKey.CardOpen, album.AccessCode).TrimStart('\n'));
-            sb.Append(Ctx.F(LocKey.CardLink, BotInfo.Username, album.AccessCode));
-        }
-        else
-        {
-            sb.Append("\n➖➖➖\n").Append(Ctx.T(LocKey.CardClosed).TrimStart('\n'));
-        }
-
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonView), $"view:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonRandom), $"rnd:{album.Id}"));
-        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonAddMedia), $"add:{album.Id}"), new ButtonBase(Ctx.T(LocKey.ButtonRemoveMedia), $"rmlist:{album.Id}:0"));
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonRename), $"ren:{album.Id}");
-        bf.AddButtonRow(Ctx.T(album.IsOpen ? LocKey.ButtonCloseAlbum : LocKey.ButtonOpenAlbum), $"toggle:{album.Id}");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonDeleteAlbum), $"del:{album.Id}");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonMyAlbums), "mine:0");
+        if (album.SongFileId != null) bf.AddButtonRow(Ctx.T(LocKey.ButtonSong), $"song:{album.Id}");
+        if (manager) bf.AddButtonRow(Ctx.T(LocKey.ButtonManage), $"mg:{album.Id}");
+        var back = new ButtonBase(Ctx.T(LocKey.ButtonBack), role == AlbumRole.Owner ? "mine:0" : "shared:0");
+        if (role == AlbumRole.Owner) bf.AddButtonRow(back);
+        else bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonLeave), $"leave:{album.Id}"), back);
         return (sb.ToString(), bf);
+    }
+
+    /// <summary>Submenu with everything managers and the owner can do.</summary>
+    public async Task<(string Text, ButtonForm Buttons)> BuildManage(Album album)
+    {
+        var role = await Ctx.Albums.GetRole(album, Ctx.UserId) ?? AlbumRole.Member;
+        var text = Ctx.F(LocKey.ManageTitle, Text.H(album.Title), Ctx.Ui.RoleName(role));
+
+        var bf = new ButtonForm();
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonAddMedia), $"add:{album.Id}"), new ButtonBase(Ctx.T(LocKey.ButtonRemoveMedia), $"rmlist:{album.Id}:0"));
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonRename), $"ren:{album.Id}"), new ButtonBase(Ctx.T(LocKey.ButtonSetSong), $"sng:{album.Id}"));
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonInviteLinks), $"inv:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonInviteForward), $"invf:{album.Id}"));
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonMembers), $"mem:{album.Id}:0");
+        if (role == AlbumRole.Owner)
+            bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonTransferOwnership), $"mxf:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonDeleteAlbum), $"del:{album.Id}"));
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), $"al:{album.Id}");
+        return (text, bf);
     }
 }

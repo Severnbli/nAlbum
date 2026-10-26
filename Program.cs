@@ -56,8 +56,11 @@ var bot = BotBaseBuilder
         a.Add("menu", "Main menu");
         a.Add("new", "Create an album");
         a.Add("join", "Open an album by code");
+        a.Add("albums", "Albums");
         a.Add("cancel", "Cancel the current action");
         a.Add("language", "Choose bot language");
+        a.Add("help", "Help");
+        a.Add("privacy", "Privacy policy");
     })
     .NoSerialization()   // form state is transient; albums live in SQLite
     .DefaultLanguage()

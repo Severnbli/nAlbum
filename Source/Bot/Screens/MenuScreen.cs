@@ -25,8 +25,8 @@ public sealed class MenuScreen : Screen
 {
     public MenuScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "mine", "shared", "language", "lang" };
-    public override IReadOnlyCollection<string> Commands => new[] { "/cancel", "/menu", "/albums", "/language" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "albums", "mine", "shared", "language", "lang", "help", "privacy" };
+    public override IReadOnlyCollection<string> Commands => new[] { "/cancel", "/menu", "/albums", "/language", "/help", "/privacy" };
 
     public Task<string> WelcomeTextAsync() => Task.FromResult(Ctx.T(LocKey.MenuWelcome));
 
@@ -42,7 +42,19 @@ public sealed class MenuScreen : Screen
 
         if (command == "/albums")
         {
-            await Ctx.Ui.ShowList(m, "mine", 0);
+            await Ctx.Ui.Say(Ctx.T(LocKey.AlbumsMenuTitle), Ctx.Ui.AlbumsButtons());
+            return;
+        }
+
+        if (command == "/help")
+        {
+            await ShowHelp(m);
+            return;
+        }
+
+        if (command == "/privacy")
+        {
+            await ShowPrivacy(m);
             return;
         }
 
@@ -65,6 +77,22 @@ public sealed class MenuScreen : Screen
                 await Ctx.Ui.Show(m, await WelcomeTextAsync(), Ctx.Ui.MenuButtons());
                 break;
 
+            case "albums":
+                Ctx.Session.Mode = Mode.Idle;
+                await m.ConfirmAction();
+                await Ctx.Ui.Show(m, Ctx.T(LocKey.AlbumsMenuTitle), Ctx.Ui.AlbumsButtons());
+                break;
+
+            case "help":
+                await m.ConfirmAction();
+                await ShowHelp(m);
+                break;
+
+            case "privacy":
+                await m.ConfirmAction();
+                await ShowPrivacy(m);
+                break;
+
             case "mine":
             case "shared":
                 Ctx.Session.Mode = Mode.Idle;
@@ -81,6 +109,20 @@ public sealed class MenuScreen : Screen
                 await SetLanguage(m, p);
                 break;
         }
+    }
+
+    private async Task ShowHelp(MessageResult m)
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.HelpText), bf);
+    }
+
+    private async Task ShowPrivacy(MessageResult m)
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.PrivacyPolicy), bf);
     }
 
     private async Task ShowLanguage(MessageResult m)

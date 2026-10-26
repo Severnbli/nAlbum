@@ -51,7 +51,7 @@ public sealed class JoinScreen : Screen
     public override async Task OnCallback(MessageResult m, string[] p)
     {
         await m.ConfirmAction();
-        await Ctx.Albums.Leave(Text.Long(p, 1), Ctx.UserId);
+        await Ctx.Albums.Leave(Text.Long(p, 1), Ctx.UserId); // the owner has no access row, so this never affects them
         await Ctx.Ui.ShowList(m, "shared", 0);
     }
 
@@ -65,7 +65,7 @@ public sealed class JoinScreen : Screen
         }
 
         var code = raw.Trim().ToUpperInvariant();
-        var album = AlbumService.LooksLikeCode(code) ? await Ctx.Albums.JoinByCode(Ctx.UserId, code) : null;
+        var (album, joined) = AlbumService.LooksLikeCode(code) ? await Ctx.Albums.JoinByCode(Ctx.UserId, code) : (null, false);
         if (album == null)
         {
             Ctx.Throttle.RegisterFailedAttempt(Ctx.UserId);
@@ -74,8 +74,8 @@ public sealed class JoinScreen : Screen
             return;
         }
 
-        await Ctx.Stats.IncrementAsync(StatKeys.CodeJoins);
+        if (joined) await Ctx.Stats.IncrementAsync(StatKeys.CodeJoins);
         var (card, bf) = await Ctx.Cards.Build(album);
-        await Ctx.Ui.Say(Ctx.T(LocKey.JoinGranted) + card, bf);
+        await Ctx.Ui.Say(Ctx.T(joined ? LocKey.JoinGranted : LocKey.JoinAlready) + card, bf);
     }
 }

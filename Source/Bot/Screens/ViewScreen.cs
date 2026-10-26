@@ -46,7 +46,7 @@ public sealed class ViewScreen : Screen
 
         var s = Ctx.Session;
         var album = await Ctx.Albums.GetAlbum(s.AlbumId);
-        if (album == null || album.OwnerId != Ctx.UserId || s.Mode != Mode.Removing)
+        if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId) || s.Mode != Mode.Removing)
         {
             if (s.Mode == Mode.Removing) s.Mode = Mode.Idle;
             return;
@@ -67,7 +67,7 @@ public sealed class ViewScreen : Screen
         var total = await Ctx.Media.MediaCount(album.Id);
         var count = Math.Min(ViewPage, Math.Max(total - s.View.DeleteOffset, 0));
         var (navText, navButtons) = PageNav(album, s.View.DeleteSeed, s.View.DeleteOffset, total, count,
-            s.View.DeleteFlags, note);
+            s.View.DeleteFlags, true, note);
         await Ctx.Ui.EditNav(navText, navButtons);
     }
 
@@ -158,8 +158,8 @@ public sealed class ViewScreen : Screen
             : 0L;
         var offset = isPage || p[0] == "view" ? Math.Max(Text.Int(p, random ? 3 : 2), 0) : 0;
         var flags = isPage ? Text.Int(p, random ? 4 : 3) : 0;
-        if ((flags & DeleteModeFlag) != 0 && album.OwnerId != Ctx.UserId)
-            flags &= ShowNumbersFlag | KeepNumbersFlag; // only the owner can delete
+        if ((flags & DeleteModeFlag) != 0 && !await Ctx.Albums.CanManage(album, Ctx.UserId))
+            flags &= ShowNumbersFlag | KeepNumbersFlag; // only managers can delete
         if ((flags & DeleteModeFlag) != 0) flags |= ShowNumbersFlag; // delete mode always shows numbers
         else if ((flags & ShowNumbersFlag) != 0) flags |= KeepNumbersFlag;
 
@@ -222,7 +222,8 @@ public sealed class ViewScreen : Screen
         if ((flags & ShowNumbersFlag) != 0)
             captions = MediaView.NumberCaptions(items.Select(i => i.Number).ToList(), Ctx.T);
 
-        var (text, nav) = PageNav(album, seed, offset, total, items.Count, flags, note);
+        var canManage = await Ctx.Albums.CanManage(album, Ctx.UserId);
+        var (text, nav) = PageNav(album, seed, offset, total, items.Count, flags, canManage, note);
         await Ctx.View.ShowViewPage(
             clickedMessageId,
             items,
@@ -232,7 +233,7 @@ public sealed class ViewScreen : Screen
     }
 
     private (string Text, ButtonForm Buttons) PageNav(Album album, long seed, int offset, int total, int count,
-        int flags, string note)
+        int flags, bool canManage, string note)
     {
         var deleting = (flags & DeleteModeFlag) != 0;
         var numbers = (flags & ShowNumbersFlag) != 0;
@@ -249,6 +250,8 @@ public sealed class ViewScreen : Screen
         var bf = new ButtonForm();
         var row = new List<ButtonBase>();
         var lastOffset = Math.Max(total - ViewPage, 0);
+        if (offset > ViewPage)
+            row.Add(new ButtonBase("⏮", PageCb(album, seed, 0, flags)));
         if (offset > 0)
         {
             var previousOffset = offset == lastOffset
@@ -260,6 +263,8 @@ public sealed class ViewScreen : Screen
         if (offset < lastOffset)
             row.Add(new ButtonBase(Ctx.T(LocKey.ButtonNext),
                 PageCb(album, seed, Math.Min(offset + ViewPage, lastOffset), flags)));
+        if (offset + ViewPage < lastOffset)
+            row.Add(new ButtonBase("⏭", PageCb(album, seed, lastOffset, flags)));
         if (row.Count > 0) bf.AddButtonRow(row.ToArray());
 
         if (deleting)
@@ -275,7 +280,7 @@ public sealed class ViewScreen : Screen
                 : new ButtonBase(Ctx.T(LocKey.ButtonShowNumbers),
                     PageCb(album, seed, offset, flags | ShowNumbersFlag | KeepNumbersFlag));
             var buttons = new List<ButtonBase> { toggle };
-            if (album.OwnerId == Ctx.UserId)
+            if (canManage)
                 buttons.Add(new ButtonBase(Ctx.T(LocKey.ButtonDeleteByNumber),
                     PageCb(album, seed, offset, flags | ShowNumbersFlag | DeleteModeFlag)));
             bf.AddButtonRow(buttons.ToArray());
@@ -293,7 +298,7 @@ public sealed class ViewScreen : Screen
     {
         var s = Ctx.Session;
         var album = await Ctx.Albums.GetAlbum(s.AlbumId);
-        if (album == null || album.OwnerId != Ctx.UserId)
+        if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId))
         {
             s.Mode = Mode.Idle;
             return;
@@ -335,7 +340,7 @@ public sealed class ViewScreen : Screen
         }
 
         var count = Math.Min(ViewPage, Math.Max(total - s.View.DeleteOffset, 0));
-        var (navText, navButtons) = PageNav(album, s.View.DeleteSeed, s.View.DeleteOffset, total, count, s.View.DeleteFlags, note);
+        var (navText, navButtons) = PageNav(album, s.View.DeleteSeed, s.View.DeleteOffset, total, count, s.View.DeleteFlags, true, note);
         await Ctx.Ui.EditNav(navText, navButtons);
     }
 }
