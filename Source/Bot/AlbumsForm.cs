@@ -100,6 +100,13 @@ public class AlbumsForm : FormBase, IStateForm
         if (message.IsAction || !_ctx.IsPrivate) return;
         if (message.UpdateData.Type != UpdateType.Message) return;   // ignore edits etc.
 
+        // a broadcast may itself contain or start with commands; only a bare /cancel leaves the flow
+        if (_ctx.Session.Mode == Mode.Broadcast && message.MessageText?.Trim() != "/cancel")
+        {
+            await _admin.OnBroadcastMessage(message.UpdateData.Message);   // any message, text or media
+            return;
+        }
+
         if (message.IsBotCommand)
         {
             await _add.Abort();                                      // drops the add prompt and keyboard, if any
@@ -116,12 +123,6 @@ public class AlbumsForm : FormBase, IStateForm
         if (_ctx.Session.Mode == Mode.InviteForward)
         {
             await _members.OnForward(message.UpdateData.Message);   // any forwarded message, text or media
-            return;
-        }
-
-        if (_ctx.Session.Mode == Mode.Broadcast)
-        {
-            await _admin.OnBroadcastMessage(message.UpdateData.Message);   // any message, text or media
             return;
         }
 
