@@ -133,7 +133,7 @@ public sealed class SongScreen : Screen
                 if (album == null) return;
                 if (album.SongFileId == null)
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.SongNone), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.SongNone));
                     return;
                 }
 

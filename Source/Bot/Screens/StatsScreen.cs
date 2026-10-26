@@ -40,7 +40,7 @@ public sealed class StatsScreen : Screen
 
         if (!Ctx.Config.IsAdmin(Ctx.UserId))
         {
-            await m.ConfirmAction(Ctx.T(LocKey.StatsNotAllowed), true);
+            await m.ConfirmAction(Ctx.T(LocKey.StatsNotAllowed));
             return;
         }
 

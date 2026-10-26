@@ -186,7 +186,7 @@ public sealed class MembersScreen : Screen
         var target = (await Ctx.Albums.ListMembers(album)).FirstOrDefault(x => x.UserId == userId);
         if (target == null)
         {
-            await m.ConfirmAction(Ctx.T(LocKey.MemberGone), true);
+            await m.ConfirmAction(Ctx.T(LocKey.MemberGone));
             await ShowMembers(m, album, page, p[0] is "mto" or "mtook");
             return;
         }
@@ -198,7 +198,7 @@ public sealed class MembersScreen : Screen
             case "mkok":
                 if (!CanKick(actor, target.Role) || target.UserId == Ctx.UserId)
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed));
                     return;
                 }
 
@@ -221,7 +221,7 @@ public sealed class MembersScreen : Screen
             case "mde":
                 if (actor != AlbumRole.Owner || target.Role == AlbumRole.Owner)
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed));
                     return;
                 }
 
@@ -235,7 +235,7 @@ public sealed class MembersScreen : Screen
             {
                 if (target.Role == AlbumRole.Owner)
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed));
                     return;
                 }
 
@@ -251,11 +251,11 @@ public sealed class MembersScreen : Screen
             {
                 if (target.Role == AlbumRole.Owner || !await Ctx.Albums.TransferOwnership(album.Id, Ctx.UserId, userId))
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.MemberGone), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.MemberGone));
                     return;
                 }
 
-                await m.ConfirmAction(Ctx.T(LocKey.TransferDone), true);
+                await m.ConfirmAction(Ctx.T(LocKey.TransferDone));
                 album = await Ctx.Albums.GetAlbum(album.Id);
                 var (card, cardButtons) = await Ctx.Cards.Build(album);
                 await Ctx.Ui.Show(m, card, cardButtons);

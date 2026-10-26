@@ -240,7 +240,7 @@ public sealed class BotUi
     {
         var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
         if (album != null && album.OwnerId == Ctx.UserId) return album;
-        await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumNotOwned), true);
+        await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumNotOwned));
         return null;
     }
 
@@ -249,7 +249,7 @@ public sealed class BotUi
     {
         var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
         if (album != null && await Ctx.Albums.CanManage(album, Ctx.UserId)) return album;
-        await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
+        await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed));
         return null;
     }
 
@@ -257,7 +257,7 @@ public sealed class BotUi
     {
         var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
         if (album != null && await Ctx.Albums.CanView(album, Ctx.UserId)) return album;
-        await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumUnavailable), true);
+        await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumUnavailable));
         return null;
     }
 }

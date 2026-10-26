@@ -33,15 +33,16 @@ public sealed class AlbumCard
         var role = await Ctx.Albums.GetRole(album, Ctx.UserId) ?? AlbumRole.Member;
         var manager = role >= AlbumRole.Manager;
 
-        // header with the role, then one line per fact
+        // title, then one line per fact, the role last
         var sb = new StringBuilder();
-        sb.Append($"📁 <b>{Text.H(album.Title)}</b>\n").Append(Ctx.F(LocKey.CardRole, Ctx.Ui.RoleName(role))).Append("\n\n");
+        sb.Append($"<b>{Text.H(album.Title)}</b>\n\n");
         var media = Ctx.F(LocKey.CardMedia, Text.N(count));
         if (manager && album.NextNumber > 1)
             media += Ctx.F(LocKey.CardLastNumber, album.NextNumber - 1);
         sb.Append(media);
         if (watch != null) sb.Append('\n').Append(Ctx.F(LocKey.CardViewStats, Text.N(watch.Views), Text.N(watch.Pages)));
         if (manager) sb.Append('\n').Append(Ctx.F(LocKey.CardMembers, Text.N(await Ctx.Albums.MemberCount(album.Id) + 1)));
+        sb.Append('\n').Append(Ctx.F(LocKey.CardRole, Ctx.Ui.RoleName(role)));
 
         var bf = new ButtonForm();
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonView), $"view:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonRandom), $"rnd:{album.Id}"));

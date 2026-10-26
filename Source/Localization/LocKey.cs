@@ -81,8 +81,6 @@ public static class LocKey
     public const string RemoveNoMatches = nameof(RemoveNoMatches);
     public const string RemoveIgnored = nameof(RemoveIgnored);
     public const string RemovePreview = nameof(RemovePreview);
-    public const string ButtonPrev = nameof(ButtonPrev);
-    public const string ButtonNext = nameof(ButtonNext);
     public const string ButtonDeleteCount = nameof(ButtonDeleteCount);
     public const string ButtonCancelAction = nameof(ButtonCancelAction);
     public const string RemovePreviewFailed = nameof(RemovePreviewFailed);
