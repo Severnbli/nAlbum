@@ -16,8 +16,12 @@
 
 using nAlbum.Bot.Ui;
 using nAlbum.Services;
+using Telegram.Bot;
+using Telegram.Bot.Exceptions;
+using Telegram.Bot.Types;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using TelegramBotBase.Sessions;
 using nAlbum.Localization;
 
 namespace nAlbum.Bot.Screens;
@@ -26,10 +30,12 @@ namespace nAlbum.Bot.Screens;
 public sealed class AdminScreen : Screen
 {
     private const int ListPage = 8;
+    private static readonly TimeSpan SendInterval = TimeSpan.FromMilliseconds(50);   // stays under ~30 messages/second
+    private static readonly SemaphoreSlim BroadcastGate = new(1, 1);                  // one broadcast per process
 
     public AdminScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "admin", "aal", "aa", "adel", "adelok" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "admin", "aal", "aa", "adel", "adelok", "abc", "abcok" };
     public override IReadOnlyCollection<string> Commands => new[] { "/admin" };
 
     public override async Task OnCommand(MessageResult m, string command, IReadOnlyList<string> args)
@@ -51,11 +57,23 @@ public sealed class AdminScreen : Screen
             return;
         }
 
+        if (Ctx.Session.Mode == Mode.Broadcast) Ctx.Session.Mode = Mode.Idle;
         switch (p[0])
         {
             case "admin":
                 await m.ConfirmAction();
                 await ShowPanel(m);
+                break;
+
+            case "abc":
+                await m.ConfirmAction();
+                Ctx.Session.Mode = Mode.Broadcast;
+                Ctx.Session.BroadcastMessageId = 0;
+                await Ctx.Ui.Show(m, Ctx.T(LocKey.BroadcastPrompt), BackButtons());
+                break;
+
+            case "abcok":
+                await StartBroadcast(m, Text.Int(p, 1));
                 break;
 
             case "aal":
@@ -118,6 +136,7 @@ public sealed class AdminScreen : Screen
         var bf = new ButtonForm();
         bf.AddButtonRow(Ctx.T(LocKey.MenuDetailedStatistics), "stats");
         bf.AddButtonRow(Ctx.T(LocKey.AdminRemoveAlbums), "aal:0");
+        bf.AddButtonRow(Ctx.T(LocKey.AdminBroadcast), "abc");
         bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
         await Ctx.Ui.Show(m, Ctx.T(LocKey.AdminTitle), bf);
     }
@@ -141,5 +160,114 @@ public sealed class AdminScreen : Screen
         if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "admin");
         await Ctx.Ui.Show(m, text, bf);
+    }
+
+    // ---------------------------------------------------------- broadcast
+    private ButtonForm BackButtons()
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), "admin");
+        return bf;
+    }
+
+    /// <summary>Any message in Mode.Broadcast: it stays in the chat as the preview and waits for confirmation.</summary>
+    public async Task OnBroadcastMessage(Message msg)
+    {
+        if (msg == null) return;
+        if (!Ctx.Config.IsAdmin(Ctx.UserId))
+        {
+            Ctx.Session.Mode = Mode.Idle;
+            return;
+        }
+
+        if (msg.MediaGroupId != null)
+        {
+            await Ctx.Ui.TryDelete(msg.MessageId);
+            await Ctx.Ui.Say(Ctx.T(LocKey.BroadcastNoGroups), BackButtons());
+            return;
+        }
+
+        Ctx.Session.Mode = Mode.Idle;
+        Ctx.Session.BroadcastMessageId = msg.MessageId;
+        var recipients = (await Ctx.Stats.ListUserIdsAsync()).Count(id => id != Ctx.UserId);
+        var bf = new ButtonForm();
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonSend), $"abcok:{msg.MessageId}"), new ButtonBase(Ctx.T(LocKey.ButtonCancelAction), "admin"));
+        await Ctx.Ui.Say(Ctx.F(LocKey.BroadcastConfirm, Text.N(recipients)), bf);
+    }
+
+    private async Task StartBroadcast(MessageResult m, int messageId)
+    {
+        if (messageId == 0 || messageId != Ctx.Session.BroadcastMessageId)
+        {
+            await m.ConfirmAction(Ctx.T(LocKey.BroadcastExpired), true);
+            return;
+        }
+
+        if (!await BroadcastGate.WaitAsync(0))
+        {
+            await m.ConfirmAction(Ctx.T(LocKey.BroadcastBusy), true);
+            return;
+        }
+
+        Ctx.Session.BroadcastMessageId = 0;
+        await m.ConfirmAction();
+        var recipients = (await Ctx.Stats.ListUserIdsAsync()).Where(id => id != Ctx.UserId).ToList();
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "admin");
+        await Ctx.Ui.Show(m, Ctx.F(LocKey.BroadcastStarted, Text.N(recipients.Count)), bf);
+
+        var adminId = Ctx.UserId;
+        var device = Ctx.Device;
+        var language = Ctx.Language;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var (sent, failed) = await Broadcast(device, adminId, messageId, recipients);
+                await device.Dispatch(a => a.SendMessage(adminId,
+                    Ctx.Localization.F(language, LocKey.BroadcastDone, Text.N(sent), Text.N(failed)),
+                    parseMode: Telegram.Bot.Types.Enums.ParseMode.Html));
+            }
+            catch (Exception ex)
+            {
+                await Console.Error.WriteLineAsync($"Broadcast failed: {ex}");
+            }
+            finally
+            {
+                BroadcastGate.Release();
+            }
+        });
+    }
+
+    /// <summary>Copies the message to every recipient. Flood waits are honoured once per recipient; other errors count as failed.</summary>
+    private static async Task<(int Sent, int Failed)> Broadcast(TelegramBotBase.Interfaces.IDeviceSession device,
+        long fromChat, int messageId, List<long> recipients)
+    {
+        int sent = 0, failed = 0;
+        foreach (var userId in recipients)
+        {
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    await device.Dispatch(a => a.CopyMessage(userId, fromChat, messageId));
+                    sent++;
+                    break;
+                }
+                catch (ApiRequestException ex) when (ex.ErrorCode == 429 && attempt == 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(ex.Parameters?.RetryAfter ?? 3, 30) + 1));
+                }
+                catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+                {
+                    failed++; // blocked the bot, deleted account, ...
+                    break;
+                }
+            }
+
+            await Task.Delay(SendInterval);
+        }
+
+        return (sent, failed);
     }
 }

@@ -178,6 +178,15 @@
     "SongRemoved": "Album song removed.",
     "SongNone": "This album has no song.",
     "SongCaption": "🎵 <b>{0}</b>\nTurn it on and enable repeat, then press Done.",
-    "SongFailed": "⚠️ The song could not be sent. Ask a manager to set it again."
+    "SongFailed": "⚠️ The song could not be sent. Ask a manager to set it again.",
+    "AdminBroadcast": "📣 Broadcast",
+    "BroadcastPrompt": "📣 <b>Broadcast</b>\n\nSend the message to deliver to every user: text, a photo, a video or anything else (one message, not an album). You'll confirm before anything is sent.",
+    "BroadcastNoGroups": "⚠️ Albums of several media can't be broadcast. Send a single message.",
+    "BroadcastConfirm": "📣 Send the message above to {0} user(s)?",
+    "ButtonSend": "✅ Send",
+    "BroadcastExpired": "This broadcast has expired. Start again from the admin panel.",
+    "BroadcastBusy": "Another broadcast is still running.",
+    "BroadcastStarted": "📣 Broadcast to {0} user(s) started. I'll report when it's done.",
+    "BroadcastDone": "📣 Broadcast finished: delivered {0}, failed {1}."
   }
 }

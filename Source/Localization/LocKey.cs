@@ -196,4 +196,13 @@ public static class LocKey
     public const string SongNone = nameof(SongNone);
     public const string SongCaption = nameof(SongCaption);
     public const string SongFailed = nameof(SongFailed);
+    public const string AdminBroadcast = nameof(AdminBroadcast);
+    public const string BroadcastPrompt = nameof(BroadcastPrompt);
+    public const string BroadcastNoGroups = nameof(BroadcastNoGroups);
+    public const string BroadcastConfirm = nameof(BroadcastConfirm);
+    public const string ButtonSend = nameof(ButtonSend);
+    public const string BroadcastExpired = nameof(BroadcastExpired);
+    public const string BroadcastBusy = nameof(BroadcastBusy);
+    public const string BroadcastStarted = nameof(BroadcastStarted);
+    public const string BroadcastDone = nameof(BroadcastDone);
 }

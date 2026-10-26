@@ -131,6 +131,13 @@ public sealed class StatsService
         catch (Exception ex) { Console.Error.WriteLine($"Stats: refresh name failed: {ex.Message}"); }
     }
 
+    /// <summary>Everyone who has used the bot (broadcast recipients).</summary>
+    public async Task<List<long>> ListUserIdsAsync()
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.BotUsers.AsNoTracking().OrderBy(u => u.UserId).Select(u => u.UserId).ToListAsync();
+    }
+
     /// <summary>Records an ordered or random view opening.</summary>
     public async Task RecordViewAsync(long albumId, long userId, bool random)
     {
