@@ -207,7 +207,7 @@ public sealed class MediaView
         var (ids, failed) = await SendBatch(items, captions);
         v.Ids.AddRange(ids);
         v.Editable = failed == 0 && ids.Count == items.Count;
-        var navMsg = await Ctx.Ui.Say(textFor(failed), nav);
+        var navMsg = await Ctx.Ui.SayNav(textFor(failed), nav);
         v.NavId = navMsg?.MessageId ?? 0;
     }
 

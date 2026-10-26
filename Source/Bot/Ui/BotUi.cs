@@ -35,10 +35,30 @@ public sealed class BotUi
     public BotUi(BotContext ctx) { Ctx = ctx; }
     private BotContext Ctx { get; }
 
-    /// <summary>Sends a new HTML message.</summary>
-    public Task<Message> Say(string html, ButtonForm bf = null) =>
+    /// <summary>
+    /// Sends a new HTML message. A message with buttons becomes the menu message and replaces the previous one,
+    /// so the chat never holds two live menus.
+    /// </summary>
+    public async Task<Message> Say(string html, ButtonForm bf = null)
+    {
+        var msg = await SayNav(html, bf);
+        if (bf != null && msg != null) await ReplaceMenu(msg.MessageId);
+        return msg;
+    }
+
+    /// <summary>Sends a message that is not tracked as the menu (view navigation messages).</summary>
+    public Task<Message> SayNav(string html, ButtonForm bf = null) =>
         Ctx.Device.Dispatch(a => a.SendMessage(Ctx.Device.DeviceId, html, parseMode: ParseMode.Html,
             replyMarkup: Markup(bf), linkPreviewOptions: NoLinkPreview));
+
+    /// <summary>Makes messageId the menu message and deletes the previous one (unless it is the view navigation).</summary>
+    private async Task ReplaceMenu(int messageId)
+    {
+        var s = Ctx.Session;
+        var previous = s.MenuMessageId;
+        s.MenuMessageId = messageId;
+        if (previous != 0 && previous != messageId && previous != s.View.NavId) await TryDelete(previous);
+    }
 
     private static readonly LinkPreviewOptions NoLinkPreview = new() { IsDisabled = true };
 
@@ -57,6 +77,32 @@ public sealed class BotUi
             try
             {
                 await EditText(m.MessageId, html, bf);
+                await ReplaceMenu(m.MessageId);
+                return;
+            }
+            catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
+            {
+                await ReplaceMenu(m.MessageId);
+                return;
+            }
+            catch (ApiRequestException)
+            {
+                // message too old / not editable -> send a fresh one
+            }
+        }
+
+        await Say(html, bf);
+    }
+
+    /// <summary>Edits the current menu message (e.g. a prompt after invalid input); falls back to a new message.</summary>
+    public async Task ShowMenu(string html, ButtonForm bf)
+    {
+        var id = Ctx.Session.MenuMessageId;
+        if (id != 0)
+        {
+            try
+            {
+                await EditText(id, html, bf);
                 return;
             }
             catch (ApiRequestException ex) when (ex.Message.Contains("not modified"))
@@ -65,7 +111,7 @@ public sealed class BotUi
             }
             catch (ApiRequestException)
             {
-                // message too old / not editable -> send a fresh one
+                // menu message is gone -> send a fresh one
             }
         }
 
@@ -89,7 +135,7 @@ public sealed class BotUi
         var v = Ctx.Session.View;
         if (v.NavId == 0)
         {
-            v.NavId = (await Say(html, bf))?.MessageId ?? 0;
+            v.NavId = (await SayNav(html, bf))?.MessageId ?? 0;
             return;
         }
 

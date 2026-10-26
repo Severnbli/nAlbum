@@ -25,6 +25,7 @@ public sealed class UserSession
 {
     public Mode Mode { get; set; } = Mode.Idle;
     public long AlbumId { get; set; }                 // was _albumId
+    public int MenuMessageId { get; set; }            // the single message with menu buttons (card, list, prompt)
     public AddState Add { get; } = new();
     public ViewState View { get; } = new();
     public RemovalState Removal { get; } = new();

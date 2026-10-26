@@ -77,6 +77,7 @@ public class AlbumsForm : FormBase
 
         if (message.IsBotCommand)
         {
+            await _add.Abort();                                      // drops the add prompt and keyboard, if any
             _ctx.Session.Mode = Mode.Idle;                           // any command aborts the current flow (as before)
             var args = message.BotCommandParameters;
             if (message.BotCommand == "/start" && args.Count > 0) await _join.TryJoin(args[0]);   // deep link

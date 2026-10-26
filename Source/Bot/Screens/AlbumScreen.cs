@@ -30,10 +30,11 @@ public sealed class AlbumScreen : Screen
     public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.NewTitle, Mode.Rename };
     public override IReadOnlyCollection<string> Commands => new[] { "/new" };
 
-    public override Task OnCommand(MessageResult m, string command, IReadOnlyList<string> args) => StartNew();
+    public override Task OnCommand(MessageResult m, string command, IReadOnlyList<string> args) => StartNew(m);
 
     public override async Task OnText(MessageResult m, string text)
     {
+        await Ctx.Ui.TryDelete(m.MessageId); // the prompt is replaced by the result, keep the chat tidy
         switch (Ctx.Session.Mode)
         {
             case Mode.NewTitle:
@@ -41,7 +42,7 @@ public sealed class AlbumScreen : Screen
                 var title = Text.CleanTitle(text);
                 if (title.Length == 0)
                 {
-                    await Ctx.Ui.Say(Ctx.T(LocKey.AlbumTitleEmpty));
+                    await Ctx.Ui.ShowMenu(Ctx.T(LocKey.AlbumTitleEmpty), NewCancelButtons());
                     return;
                 }
 
@@ -58,7 +59,7 @@ public sealed class AlbumScreen : Screen
                 var title = Text.CleanTitle(text);
                 if (title.Length == 0)
                 {
-                    await Ctx.Ui.Say(Ctx.T(LocKey.AlbumTitleEmpty));
+                    await Ctx.Ui.ShowMenu(Ctx.T(LocKey.AlbumTitleEmpty), CancelButtons(Ctx.Session.AlbumId));
                     return;
                 }
 
@@ -80,7 +81,7 @@ public sealed class AlbumScreen : Screen
         {
             case "new":
                 await m.ConfirmAction();
-                await StartNew();
+                await StartNew(m);
                 break;
 
             case "al":
@@ -106,7 +107,7 @@ public sealed class AlbumScreen : Screen
                 await m.ConfirmAction();
                 Ctx.Session.Mode = Mode.Rename;
                 Ctx.Session.AlbumId = album.Id;
-                await Ctx.Ui.Say(Ctx.T(LocKey.AlbumRenamePrompt));
+                await Ctx.Ui.Show(m, Ctx.T(LocKey.AlbumRenamePrompt), CancelButtons(album.Id));
                 break;
             }
 
@@ -135,10 +136,24 @@ public sealed class AlbumScreen : Screen
         }
     }
 
-    private async Task StartNew()
+    private async Task StartNew(MessageResult m)
     {
         Ctx.Session.Mode = Mode.NewTitle;
-        await Ctx.Ui.Say(Ctx.T(LocKey.AlbumTitlePrompt));
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.AlbumTitlePrompt), NewCancelButtons());
+    }
+
+    private ButtonForm NewCancelButtons()
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), "menu");
+        return bf;
+    }
+
+    private ButtonForm CancelButtons(long albumId)
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), $"al:{albumId}");
+        return bf;
     }
 
     private async Task OnToggle(MessageResult m, string[] p)

@@ -166,6 +166,25 @@ public sealed class AddMediaScreen : Screen
         Ctx.Session.Add.KeyboardMessageId = keyboardMessage?.MessageId ?? 0;
     }
 
+    /// <summary>Leaves the adding flow without saving (a command was sent); removes the prompt and the keyboard.</summary>
+    public async Task Abort()
+    {
+        var add = Ctx.Session.Add;
+        await add.Gate.WaitAsync();
+        try
+        {
+            if (Ctx.Session.Mode != Mode.Adding) return;
+            Ctx.Session.Mode = Mode.Idle;
+            if (add.PromptMessageId != 0) await Ctx.Ui.TryDelete(add.PromptMessageId);
+            if (add.KeyboardMessageId != 0) await Ctx.Ui.TryDelete(add.KeyboardMessageId);
+            add.Reset();
+        }
+        finally
+        {
+            add.Gate.Release();
+        }
+    }
+
     private async Task FinishAdding(MessageResult m, Album album)
     {
         var add = Ctx.Session.Add;
