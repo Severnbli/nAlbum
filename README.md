@@ -90,6 +90,7 @@ The bot detects your language from Telegram by default (English, Russian, and Be
 | `DB_PATH` | No | SQLite database path; defaults to `/data/albums.db` |
 | `ADMIN_IDS` | No | Comma-separated Telegram user IDs allowed to use the admin panel (detailed statistics, album removal, broadcasts) |
 | `LOCALES_DIR` | No | Directory with language files; defaults to `Locales` next to the application |
+| `STATE_PATH` | No | File where open sessions are saved on shutdown; defaults to `sessions.json` next to the database |
 
 Do not commit `.env`; it contains the bot token. `.env.example` is a safe template.
 
@@ -107,6 +108,8 @@ Files are copied to the build output, so rebuild after adding one. To add langua
 ## Statistics and data
 
 Public totals show the current number of albums and lifetime album views and watched pages. Album cards show that album's views and pages to everyone who can access it. Detailed user, album, media, and invite statistics are restricted to `ADMIN_IDS`; statistics never show user IDs or usernames.
+
+On shutdown (`docker compose stop`, Ctrl+C) the bot saves every open session – current menu, view, album song message and unfinished actions – to `STATE_PATH` and restores them on the next start, so menus keep working after a restart. In Docker the file lives in `bot_data`. A forced kill skips the save; sessions then start fresh.
 
 The bot stores Telegram media and song file references, not downloaded media, plus each user's Telegram display name so album managers can recognize members. The in-bot privacy policy (`PrivacyPolicy` in `Locales/*.json`) describes this; if you run your own instance, review it and add your contact details. You can also register a privacy policy link with [@BotFather](https://t.me/BotFather).
 

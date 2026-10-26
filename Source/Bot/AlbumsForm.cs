@@ -21,13 +21,18 @@ using nAlbum.Config;
 using nAlbum.Services;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types.Enums;
+using TelegramBotBase.Args;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
+using TelegramBotBase.Interfaces;
 
 namespace nAlbum.Bot;
 
-/// <summary>Thin router. One instance per user session. Render() stays empty on purpose.</summary>
-public class AlbumsForm : FormBase
+/// <summary>
+/// Thin router. One instance per user session. Render() stays empty on purpose.
+/// The session is saved by the JSON state machine on shutdown and restored on start (see <see cref="SessionSnapshot"/>).
+/// </summary>
+public class AlbumsForm : FormBase, IStateForm
 {
     private readonly BotContext _ctx;
     private readonly MenuScreen _menu;
@@ -66,6 +71,19 @@ public class AlbumsForm : FormBase
     }
 
     public override Task Render(MessageResult message) => Task.CompletedTask;
+
+    public Task SaveState(SaveStateEventArgs e)
+    {
+        e.Values[SessionSnapshot.Key] = SessionSnapshot.From(_ctx.Session).ToJson();
+        return Task.CompletedTask;
+    }
+
+    public Task LoadState(LoadStateEventArgs e)
+    {
+        if (e.Values != null && e.Values.TryGetValue(SessionSnapshot.Key, out var value))
+            SessionSnapshot.FromJson(value?.ToString())?.ApplyTo(_ctx.Session);
+        return Task.CompletedTask;
+    }
 
     public override async Task PreLoad(MessageResult message)
     {

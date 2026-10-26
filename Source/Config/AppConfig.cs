@@ -20,6 +20,7 @@ public sealed class AppConfig
 {
     public string BotToken { get; init; }
     public string DbPath { get; init; }
+    public string StatePath { get; init; }
     public string LocalesDir { get; init; }
     public HashSet<long> AdminIds { get; init; } = new();
 
@@ -32,11 +33,14 @@ public sealed class AppConfig
         foreach (var part in raw.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries))
             if (long.TryParse(part, out var id)) admins.Add(id);
 
+        var dbPath = Environment.GetEnvironmentVariable("DB_PATH") ?? "/data/albums.db";
         return new AppConfig
         {
             BotToken = Environment.GetEnvironmentVariable("BOT_TOKEN")
                        ?? throw new InvalidOperationException("BOT_TOKEN is not set"),
-            DbPath = Environment.GetEnvironmentVariable("DB_PATH") ?? "/data/albums.db",
+            DbPath = dbPath,
+            StatePath = Environment.GetEnvironmentVariable("STATE_PATH")
+                        ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "sessions.json"),
             LocalesDir = Environment.GetEnvironmentVariable("LOCALES_DIR")
                          ?? Path.Combine(AppContext.BaseDirectory, "Locales"),
             AdminIds = admins
