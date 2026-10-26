@@ -323,23 +323,14 @@ public sealed class AddMediaScreen : Screen
 
     private async Task React(int messageId, string emoji)
     {
-        for (var attempt = 0; attempt < 2; attempt++)
+        try
         {
-            try
-            {
-                await Ctx.Device.Dispatch(a => a.SetMessageReaction(
-                    Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = emoji }]));
-                return;
-            }
-            catch (ApiRequestException ex) when (ex.ErrorCode == 429 && attempt == 0)
-            {
-                // albums trigger a burst of requests; wait out the limit once instead of dropping the reaction
-                await Task.Delay(TimeSpan.FromSeconds(Math.Min(ex.Parameters?.RetryAfter ?? 3, 30) + 1));
-            }
-            catch (ApiRequestException)
-            {
-                return;   // reactions are a nicety; ignore failures
-            }
+            await Ctx.Device.Dispatch(a => a.SetMessageReaction(
+                Ctx.Device.DeviceId, messageId, [new ReactionTypeEmoji { Emoji = emoji }]));
+        }
+        catch (ApiRequestException)
+        {
+            // reactions are a nicety; ignore failures
         }
     }
 }
