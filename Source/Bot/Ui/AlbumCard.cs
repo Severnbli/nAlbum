@@ -35,7 +35,7 @@ public sealed class AlbumCard
 
         // title, then one line per fact, the role last
         var sb = new StringBuilder();
-        sb.Append($"<b>{Text.H(album.Title)}</b>\n\n");
+        sb.Append($"📁 <b>{Text.H(album.Title)}</b>\n\n");
         var media = Ctx.F(LocKey.CardMedia, Text.N(count));
         if (manager && album.NextNumber > 1)
             media += Ctx.F(LocKey.CardLastNumber, album.NextNumber - 1);
