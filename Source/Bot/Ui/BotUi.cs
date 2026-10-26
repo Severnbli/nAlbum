@@ -165,9 +165,13 @@ public sealed class BotUi
         return await pick.Take(ticket);
     }
 
+    /// <summary>Callback of a ◀ / ▶ button at the start or end of a list: shows a popup instead of turning the page.</summary>
+    public const string FirstPageCallback = "pgend:first";
+    public const string LastPageCallback = "pgend:last";
+
     /// <summary>
-    /// Navigation row of a paged list: ⏮ ◀ page/pages ▶ ⏭. Jumps to the edges appear only when they skip pages;
-    /// the counter button does nothing. Null when everything fits on one page.
+    /// Navigation row of a paged list: ◀ page/pages ▶. Both arrows are always there so the buttons never move;
+    /// at either end they show a popup. The counter button does nothing. Null when everything fits on one page.
     /// </summary>
     public static ButtonBase[] PageRow(int page, int total, int pageSize, Func<int, string> callback)
     {
@@ -175,13 +179,12 @@ public sealed class BotUi
         if (pages <= 1) return null;
         page = Math.Clamp(page, 0, pages - 1);
 
-        var row = new List<ButtonBase>();
-        if (page > 1) row.Add(new ButtonBase("⏮", callback(0)));
-        if (page > 0) row.Add(new ButtonBase("◀", callback(page - 1)));
-        row.Add(new ButtonBase($"{page + 1}/{pages}", "noop"));
-        if (page < pages - 1) row.Add(new ButtonBase("▶", callback(page + 1)));
-        if (page < pages - 2) row.Add(new ButtonBase("⏭", callback(pages - 1)));
-        return row.ToArray();
+        return new[]
+        {
+            new ButtonBase("◀", page > 0 ? callback(page - 1) : FirstPageCallback),
+            new ButtonBase($"{page + 1}/{pages}", "noop"),
+            new ButtonBase("▶", page < pages - 1 ? callback(page + 1) : LastPageCallback)
+        };
     }
 
     public ButtonForm MenuButtons()

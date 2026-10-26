@@ -25,7 +25,7 @@ public sealed class MenuScreen : Screen
 {
     public MenuScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "albums", "language", "lang", "help", "privacy" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "menu", "albums", "language", "lang", "help", "privacy", "pgend" };
     public override IReadOnlyCollection<string> Commands => new[] { "/cancel", "/menu", "/albums", "/language", "/help", "/privacy" };
 
     public Task<string> WelcomeTextAsync() => Task.FromResult(Ctx.T(LocKey.MenuWelcome));
@@ -86,6 +86,10 @@ public sealed class MenuScreen : Screen
             case "help":
                 await m.ConfirmAction();
                 await ShowHelp(m);
+                break;
+
+            case "pgend":
+                await m.ConfirmAction(Ctx.T(p.Length > 1 && p[1] == "first" ? LocKey.PageFirst : LocKey.PageLast), true);
                 break;
 
             case "privacy":

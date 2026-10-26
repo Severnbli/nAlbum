@@ -203,4 +203,6 @@ public static class LocKey
     public const string PrivacyPolicy = nameof(PrivacyPolicy);
     public const string ListTitle = nameof(ListTitle);
     public const string ListEmptyHint = nameof(ListEmptyHint);
+    public const string PageFirst = nameof(PageFirst);
+    public const string PageLast = nameof(PageLast);
 }

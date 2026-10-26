@@ -185,6 +185,8 @@
     "MenuPrivacy": "🔒 Privacy",
     "PrivacyPolicy": "🔒 <b>Privacy policy</b>\n\n<b>What the bot stores</b>\n• Your Telegram user ID, first and last name, when you first and last used the bot, and your language choice.\n• Albums: titles, Telegram file IDs of added photos, videos and songs, who has access and with which role, and invite links. The files themselves stay on Telegram's servers – the bot never downloads them.\n• Viewing statistics per album and user (views and pages watched) and anonymous totals.\n\n<b>What it doesn't store</b>\nThe content of your messages, your username, phone number or contacts. Photos and videos you send while adding media are removed from the chat once saved.\n\n<b>Who sees what</b>\n• The owner and managers of an album you belong to see your name and role in its member list.\n• Bot administrators see aggregate statistics and album titles, can remove albums and can send announcements to all users. Statistics never show user IDs or names.\n• Your data is not sold or shared with third parties. Telegram handles messages under its own privacy policy.\n\n<b>Your choices</b>\n• You can leave any album at any time. Deleting an album removes its media references, members, invite links and statistics.\n• To have all your data deleted, contact the bot operator.\n\nThe bot is open source: https://github.com/Severnbli/nAlbum",
     "ListTitle": "📁 <b>Albums</b>\n👑 yours · 🛠 you manage · 📁 shared with you",
-    "ListEmptyHint": " Create an album or open an invite link to get started."
+    "ListEmptyHint": " Create an album or open an invite link to get started.",
+    "PageFirst": "This is the first page.",
+    "PageLast": "This is the end of the list."
   }
 }

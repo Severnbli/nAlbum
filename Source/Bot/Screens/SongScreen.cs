@@ -44,7 +44,7 @@ public sealed class SongScreen : Screen
     };
 
     /// <summary>Callbacks without an album id that never leave the current screen.</summary>
-    private static readonly HashSet<string> NeutralCallbacks = new() { "rmt", "noop" };
+    private static readonly HashSet<string> NeutralCallbacks = new() { "rmt", "noop", "pgend" };
 
     public SongScreen(BotContext ctx) : base(ctx) { }
 
