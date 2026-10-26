@@ -30,7 +30,6 @@ namespace nAlbum.Bot.Screens;
 public sealed class AdminScreen : Screen
 {
     private const int ListPage = 8;
-    private static readonly TimeSpan SendInterval = TimeSpan.FromMilliseconds(50);   // stays under ~30 messages/second
     private static readonly SemaphoreSlim BroadcastGate = new(1, 1);                  // one broadcast per process
 
     public AdminScreen(BotContext ctx) : base(ctx) { }
@@ -239,33 +238,22 @@ public sealed class AdminScreen : Screen
         });
     }
 
-    /// <summary>Copies the message to every recipient. Flood waits are honoured once per recipient; other errors count as failed.</summary>
+    /// <summary>Copies the message to every recipient (the framework's dispatcher applies rate limits). Errors count as failed.</summary>
     private static async Task<(int Sent, int Failed)> Broadcast(TelegramBotBase.Interfaces.IDeviceSession device,
         long fromChat, int messageId, List<long> recipients)
     {
         int sent = 0, failed = 0;
         foreach (var userId in recipients)
         {
-            for (var attempt = 0; ; attempt++)
+            try
             {
-                try
-                {
-                    await device.Dispatch(a => a.CopyMessage(userId, fromChat, messageId));
-                    sent++;
-                    break;
-                }
-                catch (ApiRequestException ex) when (ex.ErrorCode == 429 && attempt == 0)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(ex.Parameters?.RetryAfter ?? 3, 30) + 1));
-                }
-                catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
-                {
-                    failed++; // blocked the bot, deleted account, ...
-                    break;
-                }
+                await device.Dispatch(a => a.CopyMessage(userId, fromChat, messageId));
+                sent++;
             }
-
-            await Task.Delay(SendInterval);
+            catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+            {
+                failed++; // blocked the bot, deleted account, ...
+            }
         }
 
         return (sent, failed);
