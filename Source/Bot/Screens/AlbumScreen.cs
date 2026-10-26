@@ -145,7 +145,7 @@ public sealed class AlbumScreen : Screen
     private ButtonForm NewCancelButtons()
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), "menu");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), "albums");
         return bf;
     }
 

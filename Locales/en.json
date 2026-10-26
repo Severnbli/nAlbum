@@ -109,6 +109,15 @@
     "StatsUnavailable": "⚠️ Statistics are temporarily unavailable.",
     "StatsEmpty": "–",
     "StatsReport": "📊 <b>Detailed statistics</b> (admin)\n\n👥 Total unique users: {0}\n➖➖➖\n📁 Albums: {1} (open {2})\n🖼 Media: {3} (photos {4} · videos {5})\n   avg per album {6:F1} · largest {7}\n➖➖➖\n🔑 Viewer grants: {8}\n🔗 Code joins: {9}\n❌ Wrong codes: {10}\n⏳ Rate-limited: {11}\n➖➖➖\n👀 Views: {12} (in order {13} · random {14})\n📄 Pages viewed: {15}\n➖➖➖\n➕ Created: albums {16} · media {17}\n🗑 Deleted: albums {18} · media {19}\n🔓 Albums opened for others: {20} times\n➖➖➖\n🏆 Most viewed:\n{21}\n\n<i>Counters start from the upgrade date; earlier history is backfilled only for created albums and added media.</i>",
-    "StatsTopRow": "{0}. {1} – {2} views · {3} pages"
+    "StatsTopRow": "{0}. {1} – {2} views · {3} pages",
+    "MenuAlbums": "📁 Albums",
+    "MenuAdminPanel": "🛠 Admin panel",
+    "MenuHelp": "❓ Help",
+    "AlbumsMenuTitle": "📁 <b>Albums</b>\n\nCreate a new album, or open one of yours or one shared with you.",
+    "HelpText": "❓ <b>Help</b>\n\nThe guide is coming soon.",
+    "AdminTitle": "🛠 <b>Admin panel</b>",
+    "AdminRemoveAlbums": "🗑 Remove albums",
+    "AdminAlbumsTitle": "🗑 <b>All albums</b>\nChoose an album to remove.",
+    "AdminAlbumDetails": "📁 <b>#{0} {1}</b>\n\nCreated: {2}\n🖼 Media: {3}\n👥 Members: {4}"
   }
 }

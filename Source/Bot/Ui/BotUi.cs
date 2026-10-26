@@ -168,12 +168,19 @@ public sealed class BotUi
     public ButtonForm MenuButtons()
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
-        bf.AddButtonRow(Ctx.T(LocKey.MenuMyAlbums), "mine:0");
-        bf.AddButtonRow(Ctx.T(LocKey.MenuSharedWithMe), "shared:0");
+        bf.AddButtonRow(Ctx.T(LocKey.MenuAlbums), "albums");
         bf.AddButtonRow(Ctx.T(LocKey.MenuGlobalStatistics), "gstats");
-        if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuDetailedStatistics), "stats");
-        bf.AddButtonRow(Ctx.T(LocKey.MenuLanguage), "language");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuHelp), "help"), new ButtonBase(Ctx.T(LocKey.MenuLanguage), "language"));
+        if (Ctx.Config.IsAdmin(Ctx.UserId)) bf.AddButtonRow(Ctx.T(LocKey.MenuAdminPanel), "admin");
+        return bf;
+    }
+
+    public ButtonForm AlbumsButtons()
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.MenuMyAlbums), "mine:0"), new ButtonBase(Ctx.T(LocKey.MenuSharedWithMe), "shared:0"));
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
         return bf;
     }
 
@@ -210,7 +217,7 @@ public sealed class BotUi
         if ((page + 1) * ListPage < total) nav.Add(new ButtonBase("▶", $"{kind}:{page + 1}"));
         if (nav.Count > 0) bf.AddButtonRow(nav.ToArray());
         if (kind == "mine") bf.AddButtonRow(Ctx.T(LocKey.MenuNewAlbum), "new");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "albums");
 
         await Show(m, text, bf);
     }

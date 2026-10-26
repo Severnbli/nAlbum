@@ -48,7 +48,7 @@ public class AlbumsForm : FormBase
 
         var screens = new Screen[]
         {
-            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats
+            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, new AdminScreen(_ctx)
         };
         foreach (var s in screens)
         {

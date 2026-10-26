@@ -73,7 +73,7 @@ public sealed class StatsScreen : Screen
         {
             var stats = await Ctx.Stats.GetGlobalStatsAsync();
             var buttons = new ButtonForm();
-            buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonRefresh), "stats"), new ButtonBase(Ctx.T(LocKey.ButtonMenu), "menu"));
+            buttons.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonRefresh), "stats"), new ButtonBase(Ctx.T(LocKey.ButtonBack), "admin"));
             await Ctx.Ui.Show(m, Format(stats), buttons);
         }
         catch (Exception ex)

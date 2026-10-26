@@ -127,4 +127,13 @@ public static class LocKey
     public const string StatsEmpty = nameof(StatsEmpty);
     public const string StatsReport = nameof(StatsReport);
     public const string StatsTopRow = nameof(StatsTopRow);
+    public const string MenuAlbums = nameof(MenuAlbums);
+    public const string MenuAdminPanel = nameof(MenuAdminPanel);
+    public const string MenuHelp = nameof(MenuHelp);
+    public const string AlbumsMenuTitle = nameof(AlbumsMenuTitle);
+    public const string HelpText = nameof(HelpText);
+    public const string AdminTitle = nameof(AdminTitle);
+    public const string AdminRemoveAlbums = nameof(AdminRemoveAlbums);
+    public const string AdminAlbumsTitle = nameof(AdminAlbumsTitle);
+    public const string AdminAlbumDetails = nameof(AdminAlbumDetails);
 }

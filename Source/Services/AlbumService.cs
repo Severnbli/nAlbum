@@ -109,6 +109,30 @@ public class AlbumService
         return (items, total);
     }
 
+    public async Task<(List<AlbumListItem> Items, int Total)> ListAll(int skip, int take)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var query = db.Albums.AsNoTracking();
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(a => a.Id)
+            .Skip(skip).Take(take)
+            .Select(a => new AlbumListItem
+            {
+                Album = a,
+                MediaCount = db.Media.Count(m => m.AlbumId == a.Id)
+            })
+            .ToListAsync();
+        return (items, total);
+    }
+
+    /// <summary>Users with access, not counting the owner.</summary>
+    public async Task<int> MemberCount(long albumId)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Access.CountAsync(x => x.AlbumId == albumId);
+    }
+
     public async Task Rename(long albumId, string title)
     {
         await using var db = await _factory.CreateDbContextAsync();
