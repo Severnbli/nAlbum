@@ -52,7 +52,7 @@ public sealed class AdminScreen : Screen
     {
         if (!Ctx.Config.IsAdmin(Ctx.UserId))
         {
-            await m.ConfirmAction(Ctx.T(LocKey.StatsNotAllowed), true);
+            await m.ConfirmAction(Ctx.T(LocKey.StatsNotAllowed));
             return;
         }
 
@@ -86,7 +86,7 @@ public sealed class AdminScreen : Screen
                 var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
                 if (album == null)
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumUnavailable), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumUnavailable));
                     return;
                 }
 
@@ -116,7 +116,7 @@ public sealed class AdminScreen : Screen
                 var album = await Ctx.Albums.GetAlbum(Text.Long(p, 1));
                 if (album == null)
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumUnavailable), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.ErrorAlbumUnavailable));
                     return;
                 }
 
@@ -198,13 +198,13 @@ public sealed class AdminScreen : Screen
     {
         if (messageId == 0 || messageId != Ctx.Session.BroadcastMessageId)
         {
-            await m.ConfirmAction(Ctx.T(LocKey.BroadcastExpired), true);
+            await m.ConfirmAction(Ctx.T(LocKey.BroadcastExpired));
             return;
         }
 
         if (!await BroadcastGate.WaitAsync(0))
         {
-            await m.ConfirmAction(Ctx.T(LocKey.BroadcastBusy), true);
+            await m.ConfirmAction(Ctx.T(LocKey.BroadcastBusy));
             return;
         }
 

@@ -166,7 +166,7 @@ public sealed class ViewScreen : Screen
         var total = await Ctx.Media.MediaCount(album.Id);
         if (total == 0)
         {
-            await m.ConfirmAction(Ctx.T(LocKey.ViewEmpty), true);
+            await m.ConfirmAction(Ctx.T(LocKey.ViewEmpty));
             return;
         }
         offset = Math.Min(offset, Math.Max(total - ViewPage, 0));
@@ -238,9 +238,7 @@ public sealed class ViewScreen : Screen
         var deleting = (flags & DeleteModeFlag) != 0;
         var numbers = (flags & ShowNumbersFlag) != 0;
 
-        var text = seed == 0
-            ? Ctx.F(LocKey.ViewPageOrdered, Text.H(album.Title), offset + 1, offset + count, total)
-            : Ctx.F(LocKey.ViewPageRandom, Text.H(album.Title), offset + 1, offset + count, total);
+        var text = Ctx.F(seed == 0 ? LocKey.ViewPageOrdered : LocKey.ViewPageRandom, Text.H(album.Title));
         var hints = new List<string>();
         if (numbers) hints.Add(Ctx.T(LocKey.ViewNumbersHint).TrimStart('\n'));
         if (deleting) hints.Add(Ctx.T(LocKey.ViewDeleteHint).TrimStart('\n'));
@@ -258,9 +256,9 @@ public sealed class ViewScreen : Screen
             var pages = (total + ViewPage - 1) / ViewPage;
             var current = offset >= lastOffset ? pages : Math.Min(offset / ViewPage + 1, pages);
             bf.AddButtonRow(
-                new ButtonBase(Ctx.T(LocKey.ButtonPrev), offset > 0 ? PageCb(album, seed, previousOffset, flags) : BotUi.FirstPageCallback),
+                new ButtonBase("◀", offset > 0 ? PageCb(album, seed, previousOffset, flags) : BotUi.FirstPageCallback),
                 new ButtonBase($"{current}/{pages}", "noop"),
-                new ButtonBase(Ctx.T(LocKey.ButtonNext),
+                new ButtonBase("▶",
                     offset < lastOffset ? PageCb(album, seed, Math.Min(offset + ViewPage, lastOffset), flags) : BotUi.LastPageCallback));
         }
 

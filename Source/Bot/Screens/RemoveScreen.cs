@@ -88,7 +88,7 @@ public sealed class RemoveScreen : Screen
 
         if (await Ctx.Media.MediaCount(album.Id) == 0)
         {
-            await m.ConfirmAction(Ctx.T(LocKey.RemoveNothing), true);
+            await m.ConfirmAction(Ctx.T(LocKey.RemoveNothing));
             return;
         }
 
@@ -249,14 +249,14 @@ public sealed class RemoveScreen : Screen
         if (Ctx.Session.Mode != Mode.RemovePrompt || r.Pending.Count == 0 || m.MessageId != Ctx.Session.View.NavId ||
             (albumId != 0 && r.AlbumId != albumId))
         {
-            await m.ConfirmAction(Ctx.T(LocKey.RemovePreviewExpired), true);
+            await m.ConfirmAction(Ctx.T(LocKey.RemovePreviewExpired));
             return null;
         }
 
         var album = await Ctx.Albums.GetAlbum(r.AlbumId);
         if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId))
         {
-            await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed), true);
+            await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed));
             return null;
         }
 
@@ -276,7 +276,7 @@ public sealed class RemoveScreen : Screen
                 var id = Text.Long(p, 1);
                 if (r.Pending.All(x => x.Item.Id != id))
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.RemovePreviewExpired), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.RemovePreviewExpired));
                     return;
                 }
 
@@ -308,7 +308,7 @@ public sealed class RemoveScreen : Screen
                 var ids = r.Pending.Where(x => !r.Kept.Contains(x.Item.Id)).Select(x => x.Item.Id).ToList();
                 if (ids.Count == 0)
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.RemoveNothingSelected), true);
+                    await m.ConfirmAction(Ctx.T(LocKey.RemoveNothingSelected));
                     return;
                 }
 

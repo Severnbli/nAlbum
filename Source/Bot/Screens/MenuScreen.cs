@@ -89,7 +89,7 @@ public sealed class MenuScreen : Screen
                 break;
 
             case "pgend":
-                await m.ConfirmAction(Ctx.T(p.Length > 1 && p[1] == "first" ? LocKey.PageFirst : LocKey.PageLast), true);
+                await m.ConfirmAction(Ctx.T(p.Length > 1 && p[1] == "first" ? LocKey.PageFirst : LocKey.PageLast));
                 break;
 
             case "privacy":
