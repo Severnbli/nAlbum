@@ -16,6 +16,8 @@
 
 using System.Collections.Concurrent;
 using nAlbum.Data;
+using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace nAlbum.Bot;
 
@@ -27,6 +29,7 @@ public sealed class UserSession
     public long AlbumId { get; set; }                 // was _albumId
     public int MenuMessageId { get; set; }            // the single message with menu buttons (card, list, prompt)
     public int BroadcastMessageId { get; set; }       // admin's message waiting for broadcast confirmation
+    public BroadcastDraft Broadcast { get; set; }     // its content, sent to everyone on confirmation
     public int SongMessageId { get; set; }            // album song on screen; removed when the user leaves that album
     public long SongAlbumId { get; set; }
     public AddState Add { get; } = new();
@@ -104,6 +107,77 @@ public sealed class MediaPick
         {
             _gate.Release();
         }
+    }
+}
+
+public enum BroadcastKind { Text, Photo, Video, Animation, Document, Audio, Voice, VideoNote, Sticker, Copy }
+
+/// <summary>
+/// Broadcast content taken from the admin's message. Media is resent by its Telegram file id;
+/// other message types (polls, locations, ...) are copied from the admin's chat.
+/// </summary>
+public sealed class BroadcastDraft
+{
+    public BroadcastKind Kind { get; set; }
+    public string FileId { get; set; }
+    public string Text { get; set; }                  // text or caption
+    public MessageEntity[] Entities { get; set; }     // formatting of Text, kept as is
+    public LinkPreviewOptions LinkPreview { get; set; }
+    public bool CaptionAbove { get; set; }
+    public bool Spoiler { get; set; }
+
+    public static BroadcastDraft From(Message msg)
+    {
+        var d = new BroadcastDraft
+        {
+            Text = msg.Caption, Entities = msg.CaptionEntities, CaptionAbove = msg.ShowCaptionAboveMedia, Spoiler = msg.HasMediaSpoiler
+        };
+        switch (msg.Type)
+        {
+            case MessageType.Text:
+                d.Kind = BroadcastKind.Text;
+                d.Text = msg.Text;
+                d.Entities = msg.Entities;
+                d.LinkPreview = msg.LinkPreviewOptions;
+                break;
+            case MessageType.Photo when msg.Photo is { Length: > 0 }:
+                d.Kind = BroadcastKind.Photo;
+                d.FileId = msg.Photo[^1].FileId; // largest size
+                break;
+            case MessageType.Video:
+                d.Kind = BroadcastKind.Video;
+                d.FileId = msg.Video.FileId;
+                break;
+            case MessageType.Animation:
+                d.Kind = BroadcastKind.Animation;
+                d.FileId = msg.Animation.FileId;
+                break;
+            case MessageType.Document:
+                d.Kind = BroadcastKind.Document;
+                d.FileId = msg.Document.FileId;
+                break;
+            case MessageType.Audio:
+                d.Kind = BroadcastKind.Audio;
+                d.FileId = msg.Audio.FileId;
+                break;
+            case MessageType.Voice:
+                d.Kind = BroadcastKind.Voice;
+                d.FileId = msg.Voice.FileId;
+                break;
+            case MessageType.VideoNote:
+                d.Kind = BroadcastKind.VideoNote;
+                d.FileId = msg.VideoNote.FileId;
+                break;
+            case MessageType.Sticker:
+                d.Kind = BroadcastKind.Sticker;
+                d.FileId = msg.Sticker.FileId;
+                break;
+            default:
+                d.Kind = BroadcastKind.Copy;
+                break;
+        }
+
+        return d;
     }
 }
 

@@ -68,6 +68,7 @@ public sealed class AdminScreen : Screen
                 await m.ConfirmAction();
                 Ctx.Session.Mode = Mode.Broadcast;
                 Ctx.Session.BroadcastMessageId = 0;
+                Ctx.Session.Broadcast = null;
                 await Ctx.Ui.Show(m, Ctx.T(LocKey.BroadcastPrompt), BackButtons());
                 break;
 
@@ -188,6 +189,7 @@ public sealed class AdminScreen : Screen
 
         Ctx.Session.Mode = Mode.Idle;
         Ctx.Session.BroadcastMessageId = msg.MessageId;
+        Ctx.Session.Broadcast = BroadcastDraft.From(msg);
         var recipients = (await Ctx.Stats.ListUserIdsAsync()).Count(id => id != Ctx.UserId);
         var bf = new ButtonForm();
         bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonSend), $"abcok:{msg.MessageId}"), new ButtonBase(Ctx.T(LocKey.ButtonCancelAction), "admin"));
@@ -196,7 +198,8 @@ public sealed class AdminScreen : Screen
 
     private async Task StartBroadcast(MessageResult m, int messageId)
     {
-        if (messageId == 0 || messageId != Ctx.Session.BroadcastMessageId)
+        var draft = Ctx.Session.Broadcast;
+        if (messageId == 0 || messageId != Ctx.Session.BroadcastMessageId || draft == null)
         {
             await m.ConfirmAction(Ctx.T(LocKey.BroadcastExpired));
             return;
@@ -209,6 +212,7 @@ public sealed class AdminScreen : Screen
         }
 
         Ctx.Session.BroadcastMessageId = 0;
+        Ctx.Session.Broadcast = null;
         await m.ConfirmAction();
         var recipients = (await Ctx.Stats.ListUserIdsAsync()).Where(id => id != Ctx.UserId).ToList();
         var bf = new ButtonForm();
@@ -222,7 +226,7 @@ public sealed class AdminScreen : Screen
         {
             try
             {
-                var (sent, failed) = await Broadcast(device, adminId, messageId, recipients);
+                var (sent, failed) = await Broadcast(device, adminId, messageId, draft, recipients);
                 await device.Dispatch(a => a.SendMessage(adminId,
                     Ctx.Localization.F(language, LocKey.BroadcastDone, Text.N(sent), Text.N(failed)),
                     parseMode: Telegram.Bot.Types.Enums.ParseMode.Html));
@@ -238,16 +242,17 @@ public sealed class AdminScreen : Screen
         });
     }
 
-    /// <summary>Copies the message to every recipient (the framework's dispatcher applies rate limits). Errors count as failed.</summary>
+    /// <summary>Sends the draft to every recipient, media by its file id. Errors count as failed.</summary>
     private static async Task<(int Sent, int Failed)> Broadcast(TelegramBotBase.Interfaces.IDeviceSession device,
-        long fromChat, int messageId, List<long> recipients)
+        long fromChat, int messageId, BroadcastDraft draft, List<long> recipients)
     {
         int sent = 0, failed = 0;
         foreach (var userId in recipients)
         {
             try
             {
-                await device.Dispatch(a => a.CopyMessage(userId, fromChat, messageId));
+                if (draft.Kind == BroadcastKind.Copy) await device.Dispatch(a => a.CopyMessage(userId, fromChat, messageId));
+                else await device.Dispatch(a => Send(a, userId, draft));
                 sent++;
             }
             catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
@@ -257,5 +262,26 @@ public sealed class AdminScreen : Screen
         }
 
         return (sent, failed);
+    }
+
+    private static Task<Message> Send(ITelegramBotClient a, long chat, BroadcastDraft d)
+    {
+        var file = d.FileId == null ? null : InputFile.FromFileId(d.FileId);
+        return d.Kind switch
+        {
+            BroadcastKind.Text => a.SendMessage(chat, d.Text, entities: d.Entities, linkPreviewOptions: d.LinkPreview),
+            BroadcastKind.Photo => a.SendPhoto(chat, file, d.Text, captionEntities: d.Entities,
+                showCaptionAboveMedia: d.CaptionAbove, hasSpoiler: d.Spoiler),
+            BroadcastKind.Video => a.SendVideo(chat, file, d.Text, captionEntities: d.Entities,
+                showCaptionAboveMedia: d.CaptionAbove, hasSpoiler: d.Spoiler),
+            BroadcastKind.Animation => a.SendAnimation(chat, file, d.Text, captionEntities: d.Entities,
+                showCaptionAboveMedia: d.CaptionAbove, hasSpoiler: d.Spoiler),
+            BroadcastKind.Document => a.SendDocument(chat, file, d.Text, captionEntities: d.Entities),
+            BroadcastKind.Audio => a.SendAudio(chat, file, d.Text, captionEntities: d.Entities),
+            BroadcastKind.Voice => a.SendVoice(chat, file, d.Text, captionEntities: d.Entities),
+            BroadcastKind.VideoNote => a.SendVideoNote(chat, file),
+            BroadcastKind.Sticker => a.SendSticker(chat, file),
+            _ => throw new ArgumentOutOfRangeException(nameof(d), d.Kind, null)
+        };
     }
 }
