@@ -252,6 +252,16 @@ public static class LocKey
     public const string ConvMsgUser = nameof(ConvMsgUser);
     public const string ConvMsgAdmin = nameof(ConvMsgAdmin);
     public const string ConvHistoryOmitted = nameof(ConvHistoryOmitted);
+    public const string ConvMsgYou = nameof(ConvMsgYou);
+    public const string SupportMenu = nameof(SupportMenu);
+    public const string SupportMenuOpen = nameof(SupportMenuOpen);
+    public const string SupportListTitle = nameof(SupportListTitle);
+    public const string SupportConvHeader = nameof(SupportConvHeader);
+    public const string ButtonWriteSupport = nameof(ButtonWriteSupport);
+    public const string ButtonMyConversations = nameof(ButtonMyConversations);
+    public const string UserBannedNotice = nameof(UserBannedNotice);
+    public const string UserUnbannedNotice = nameof(UserUnbannedNotice);
+    public const string UserDataDeletedNotice = nameof(UserDataDeletedNotice);
     public const string PageFirst = nameof(PageFirst);
     public const string PageLast = nameof(PageLast);
 }

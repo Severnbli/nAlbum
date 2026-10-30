@@ -24,7 +24,7 @@ namespace nAlbum.Data;
 /// </summary>
 public static class SchemaUpgrader
 {
-    public const int LatestVersion = 6;
+    public const int LatestVersion = 7;
 
     public static async Task RunAsync(IDbContextFactory<AlbumDb> factory, string dbPath)
     {
@@ -48,6 +48,7 @@ public static class SchemaUpgrader
             if (version < 4) await UpgradeTo4(db);
             if (version < 5) await UpgradeTo5(db);
             if (version < 6) await UpgradeTo6(db);
+            if (version < 7) await UpgradeTo7(db);
         }
 
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
@@ -220,6 +221,15 @@ public static class SchemaUpgrader
         await using var tx = await db.Database.BeginTransactionAsync();
         foreach (var sql in steps) await db.Database.ExecuteSqlRawAsync(sql);
         await SetVersion(db, 6);
+        await tx.CommitAsync();
+    }
+
+    /// <summary>Telegram @username of users, shown to admins.</summary>
+    private static async Task UpgradeTo7(AlbumDb db)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync();
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"BotUsers\" ADD COLUMN \"Username\" TEXT NULL");
+        await SetVersion(db, 7);
         await tx.CommitAsync();
     }
 }

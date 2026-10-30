@@ -163,11 +163,11 @@ public class AlbumService
                              join u in db.BotUsers.AsNoTracking() on x.UserId equals u.UserId into users
                              from u in users.DefaultIfEmpty()
                              orderby x.Role descending, x.GrantedAt, x.UserId
-                             select new MemberInfo { UserId = x.UserId, Role = x.Role, Name = u.Name })
+                             select new MemberInfo { UserId = x.UserId, Role = x.Role, Name = u.Name, Username = u.Username })
             .ToListAsync();
-        var ownerName = await db.BotUsers.AsNoTracking()
-            .Where(u => u.UserId == album.OwnerId).Select(u => u.Name).FirstOrDefaultAsync();
-        members.Insert(0, new MemberInfo { UserId = album.OwnerId, Role = AlbumRole.Owner, Name = ownerName });
+        var owner = await db.BotUsers.AsNoTracking()
+            .Where(u => u.UserId == album.OwnerId).Select(u => new { u.Name, u.Username }).FirstOrDefaultAsync();
+        members.Insert(0, new MemberInfo { UserId = album.OwnerId, Role = AlbumRole.Owner, Name = owner?.Name, Username = owner?.Username });
         return members;
     }
 

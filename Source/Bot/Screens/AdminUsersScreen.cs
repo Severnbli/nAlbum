@@ -73,6 +73,7 @@ public sealed class AdminUsersScreen : Screen
             {
                 var ban = Text.Int(p, 3) == 1;
                 await Ctx.Users.SetBannedAsync(userId, ban);
+                await Ctx.Ui.Notify(userId, ban ? LocKey.UserBannedNotice : LocKey.UserUnbannedNotice);
                 await m.ConfirmAction(Ctx.T(ban ? LocKey.AdminUserBanned : LocKey.AdminUserUnbanned));
                 await ShowUser(m, await Ctx.Users.GetOverviewAsync(userId), page);
                 break;
@@ -90,7 +91,9 @@ public sealed class AdminUsersScreen : Screen
 
             case "audok":
             {
+                var language = Ctx.Localization.Resolve(await Ctx.Preferences.GetLanguageAsync(userId), null);   // their settings go with the data
                 var (albums, media) = await Ctx.Users.DeleteUserDataAsync(userId);
+                await Ctx.Ui.Notify(userId, LocKey.UserDataDeletedNotice, language);
                 await Ctx.Stats.IncrementAsync(StatKeys.AlbumsDeleted, albums);
                 await Ctx.Stats.IncrementAsync(StatKeys.MediaDeleted, media);
                 await m.ConfirmAction(Ctx.F(LocKey.AdminUserDeleted, albums, media));

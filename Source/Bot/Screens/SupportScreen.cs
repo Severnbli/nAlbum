@@ -42,7 +42,7 @@ public sealed class SupportScreen : Screen
 
     public SupportScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "sup", "supr", "supc", "acv", "acd", "acr", "acc", "auc" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "sup", "supw", "sul", "sud", "supr", "supc", "acv", "acd", "acr", "acc", "auc" };
     public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.Support, Mode.AdminReply };
 
     private bool IsAdmin => Ctx.Config.IsAdmin(Ctx.UserId);
@@ -59,8 +59,41 @@ public sealed class SupportScreen : Screen
         {
             case "sup":
                 await m.ConfirmAction();
-                await OpenSupport(m);
+                await ShowSupportMenu(m);
                 break;
+
+            case "supw": // write: continues the open conversation or starts a new one
+            {
+                await m.ConfirmAction();
+                if (IsAdmin || Ctx.Config.AdminIds.Count == 0)
+                {
+                    await Ctx.Ui.Show(m, Ctx.T(LocKey.SupportUnavailable), HelpButtons());
+                    return;
+                }
+
+                var open = await Ctx.Support.GetOpenForUserAsync(Ctx.UserId);
+                await ShowUserPrompt(m, open?.Id ?? 0, open != null);
+                break;
+            }
+
+            case "sul":
+                await m.ConfirmAction();
+                await ShowUserList(m, Text.Int(p, 1));
+                break;
+
+            case "sud":
+            {
+                var conversation = await Ctx.Support.GetAsync(Text.Long(p, 1));
+                if (conversation == null || conversation.UserId != Ctx.UserId)
+                {
+                    await m.ConfirmAction(Ctx.T(LocKey.AdminConvGone));
+                    return;
+                }
+
+                await m.ConfirmAction();
+                await Ctx.Ui.Show(m, await HistoryText(conversation, true), UserHistoryButtons(conversation, Text.Int(p, 2)));
+                break;
+            }
 
             case "supr":
             case "supc":
@@ -136,11 +169,8 @@ public sealed class SupportScreen : Screen
                 await m.ConfirmAction(Ctx.T(LocKey.AdminConvClosedDone));
                 Ctx.Session.Mode = Mode.Idle;
                 if (await Ctx.Support.CloseAsync(conversation.Id))
-                {
-                    await DeleteOldNotices(conversation.UserId, conversation.Id);   // their Reply / Close buttons are void now
-                    await Push(conversation.UserId, 0, l => Ctx.Localization.T(l, LocKey.SupportClosedByAdmin),
-                        l => HelpButtons(l));
-                }
+                    await Push(conversation.UserId, conversation.Id, l => Ctx.Localization.T(l, LocKey.SupportClosedByAdmin),
+                        l => HistoryOnlyButtons(l, conversation.Id));
 
                 await ShowList(m, Text.Int(p, 2));
                 break;
@@ -226,18 +256,28 @@ public sealed class SupportScreen : Screen
         return bf;
     }
 
+    private ButtonForm SupportBackButtons()
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "sup");
+        return bf;
+    }
+
     private ButtonForm UserButtons(long conversationId)
     {
         var bf = new ButtonForm();
         if (conversationId != 0) bf.AddButtonRow(Ctx.T(LocKey.ButtonCloseConversation), $"supc:{conversationId}");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "help");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "sup");
         return bf;
     }
 
     private string UserPromptText(bool open) => Ctx.T(open ? LocKey.SupportOpenPrompt : LocKey.SupportPrompt);
 
-    private async Task OpenSupport(MessageResult m)
+    /// <summary>The support entry: nothing is forced, the user can write or only read earlier conversations.</summary>
+    private async Task ShowSupportMenu(MessageResult m)
     {
+        Ctx.Session.Mode = Mode.Idle;
+        Ctx.Session.ConversationId = 0;
         if (IsAdmin || Ctx.Config.AdminIds.Count == 0)
         {
             await Ctx.Ui.Show(m, Ctx.T(LocKey.SupportUnavailable), HelpButtons());
@@ -245,7 +285,53 @@ public sealed class SupportScreen : Screen
         }
 
         var open = await Ctx.Support.GetOpenForUserAsync(Ctx.UserId);
-        await ShowUserPrompt(m, open?.Id ?? 0, open != null);
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonWriteSupport), "supw");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonMyConversations), "sul:0");
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "help");
+        await Ctx.Ui.Show(m, Ctx.T(open != null ? LocKey.SupportMenuOpen : LocKey.SupportMenu), bf);
+    }
+
+    private async Task ShowUserList(MessageResult m, int page)
+    {
+        page = Math.Max(page, 0);
+        var (items, total) = await Ctx.Support.ListForUserAsync(Ctx.UserId, page * ListPage, ListPage);
+        if (items.Count == 0 && total > 0)
+        {
+            page = (total - 1) / ListPage;
+            (items, total) = await Ctx.Support.ListForUserAsync(Ctx.UserId, page * ListPage, ListPage);
+        }
+
+        var text = Ctx.T(LocKey.SupportListTitle) + (total == 0 ? Ctx.T(LocKey.ListEmpty) : "");
+        var bf = new ButtonForm();
+        foreach (var it in items)
+        {
+            var c = it.Conversation;
+            bf.AddButtonRow($"{(c.Status == ConversationStatus.Open ? "💬" : "✅")} #{c.Id} · {c.UpdatedAt:yyyy-MM-dd} · {it.Messages}", $"sud:{c.Id}:{page}");
+        }
+
+        var nav = BotUi.PageRow(page, total, ListPage, n => $"sul:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "sup");
+        await Ctx.Ui.Show(m, text, bf);
+    }
+
+    private ButtonForm UserHistoryButtons(Conversation c, int page)
+    {
+        var bf = new ButtonForm();
+        if (c.Status == ConversationStatus.Open)
+            bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonReply), $"supr:{c.Id}"),
+                new ButtonBase(Ctx.T(LocKey.ButtonCloseConversation), $"supc:{c.Id}"));
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), $"sul:{page}");
+        return bf;
+    }
+
+    /// <summary>Buttons of a notice that only points to the conversation (it is closed).</summary>
+    private ButtonForm HistoryOnlyButtons(string language, long conversationId)
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.Localization.T(language, LocKey.ButtonHistory), $"sud:{conversationId}:0");
+        return bf;
     }
 
     private async Task ShowUserPrompt(MessageResult m, long conversationId, bool open)
@@ -266,7 +352,7 @@ public sealed class SupportScreen : Screen
                 await Push(adminId, conversation.Id, l => Ctx.Localization.F(l, LocKey.AdminConvClosedByUser, conversation.Id, Text.H(name)), null);
         }
 
-        await Ctx.Ui.Show(m, Ctx.T(LocKey.SupportClosed), HelpButtons());
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.SupportClosed), SupportBackButtons());
     }
 
     private async Task OnUserMessage(string raw, long forcedConversationId)
@@ -371,11 +457,11 @@ public sealed class SupportScreen : Screen
         return bf;
     }
 
-    private async Task<string> HistoryText(Conversation c)
+    private async Task<string> HistoryText(Conversation c, bool forUser = false)
     {
         var name = await UserLabel(c.UserId);
         var status = Ctx.T(c.Status == ConversationStatus.Open ? LocKey.ConvOpen : LocKey.ConvClosed);
-        var head = Ctx.F(LocKey.AdminConvHeader, c.Id, Text.H(name), c.UserId, status);
+        var head = forUser ? Ctx.F(LocKey.SupportConvHeader, c.Id, status) : Ctx.F(LocKey.AdminConvHeader, c.Id, Text.H(name), c.UserId, status);
 
         var (messages, hasMore) = await Ctx.Support.RecentMessagesAsync(c.Id, HistoryTake);
         var lines = new List<string>();
@@ -384,7 +470,7 @@ public sealed class SupportScreen : Screen
         {
             var msg = messages[i];
             var when = msg.SentAt.ToString("MM-dd HH:mm");
-            var who = msg.FromAdmin ? Ctx.F(LocKey.ConvMsgAdmin, when) : Ctx.F(LocKey.ConvMsgUser, Text.H(name), when);
+            var who = msg.FromAdmin ? Ctx.F(LocKey.ConvMsgAdmin, when) : forUser ? Ctx.F(LocKey.ConvMsgYou, when) : Ctx.F(LocKey.ConvMsgUser, Text.H(name), when);
             var line = $"{who}\n{Text.H(msg.Text)}";
             if (used + line.Length > HistoryChars) { hasMore = true; break; }
             used += line.Length;
@@ -485,25 +571,11 @@ public sealed class SupportScreen : Screen
         var bf = new ButtonForm();
         bf.AddButtonRow(new ButtonBase(Ctx.Localization.T(language, LocKey.ButtonReply), $"supr:{conversationId}"),
             new ButtonBase(Ctx.Localization.T(language, LocKey.ButtonCloseConversation), $"supc:{conversationId}"));
+        bf.AddButtonRow(Ctx.Localization.T(language, LocKey.ButtonHistory), $"sud:{conversationId}:0");
         return bf;
     }
 
     // ----------------------------------------------------------- delivery
-    /// <summary>Deletes the earlier notices of a conversation in another chat: their buttons are stale once a newer one arrives.</summary>
-    private async Task DeleteOldNotices(long chatId, long conversationId)
-    {
-        var ids = await Ctx.Support.TakeNoticesAsync(chatId, conversationId);
-        if (ids.Count == 0) return;
-        try
-        {
-            await Ctx.Device.Dispatch(a => a.DeleteMessages(chatId, ids));
-        }
-        catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
-        {
-            await Console.Error.WriteLineAsync($"Old support notices in {chatId} not deleted: {ex.Message}");
-        }
-    }
-
     /// <summary>
     /// Sends a message to another chat in that user's language and remembers it as part of the conversation,
     /// so a Telegram reply to it continues the conversation. False when the user can't be reached.
@@ -514,7 +586,6 @@ public sealed class SupportScreen : Screen
         var bf = buttons?.Invoke(language);
         try
         {
-            if (conversationId != 0) await DeleteOldNotices(chatId, conversationId);   // one live notice per conversation
             var msg = await Ctx.Device.Dispatch(a => a.SendMessage(chatId, Text.WithMinWidth(text(language), bf),
                 parseMode: ParseMode.Html,
                 replyMarkup: bf == null ? null : new InlineKeyboardMarkup(bf.ToInlineButtonArray())));

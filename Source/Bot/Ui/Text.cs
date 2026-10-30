@@ -46,6 +46,13 @@ public static class Text
 
     public static string N(long v) => v.ToString("N0", CultureInfo.InvariantCulture);
 
+    /// <summary>The @username of a Telegram user without the @, or null.</summary>
+    public static string Username(Telegram.Bot.Types.User user)
+    {
+        var name = user == null ? "" : StripControl(user.Username ?? "").Trim();
+        return name.Length == 0 ? null : Truncate(name, 64);
+    }
+
     /// <summary>"First Last" of a Telegram user, or null.</summary>
     public static string UserName(Telegram.Bot.Types.User user)
     {

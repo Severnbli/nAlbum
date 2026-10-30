@@ -92,7 +92,7 @@ public sealed class StatsService
     }
 
     /// <summary>Marks the user as seen and stores their display name. Writes at most once per five minutes per user.</summary>
-    public async Task TouchUserAsync(long userId, string name)
+    public async Task TouchUserAsync(long userId, string name, string username = null)
     {
         var now = DateTime.UtcNow;
         while (true)
@@ -114,7 +114,7 @@ public sealed class StatsService
         {
             await using var db = await _factory.CreateDbContextAsync();
             await db.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO BotUsers (UserId, Name, FirstSeenAt, LastSeenAt) VALUES ({userId}, {name}, {now}, {now}) ON CONFLICT(UserId) DO UPDATE SET LastSeenAt = {now}, Name = COALESCE({name}, Name)");
+                $"INSERT INTO BotUsers (UserId, Name, Username, FirstSeenAt, LastSeenAt) VALUES ({userId}, {name}, {username}, {now}, {now}) ON CONFLICT(UserId) DO UPDATE SET LastSeenAt = {now}, Name = COALESCE({name}, Name), Username = {username}");
         }
         catch (Exception ex) { Console.Error.WriteLine($"Stats: touch user failed: {ex.Message}"); }
     }

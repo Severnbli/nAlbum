@@ -129,16 +129,27 @@ public sealed class SupportService
             $"INSERT OR REPLACE INTO ConversationNotices (ChatId, MessageId, ConversationId) VALUES ({chatId}, {messageId}, {conversationId})");
     }
 
-    /// <summary>Forgets the bot messages of this chat about the conversation and returns their ids, so the caller can delete them.</summary>
-    public async Task<List<int>> TakeNoticesAsync(long chatId, long conversationId)
+    /// <summary>Open conversations of a user first, then the most recent.</summary>
+    public async Task<(List<ConversationListItem> Items, int Total)> ListForUserAsync(long userId, int skip, int take)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var ids = await db.ConversationNotices.AsNoTracking()
-            .Where(n => n.ChatId == chatId && n.ConversationId == conversationId)
-            .Select(n => n.MessageId).ToListAsync();
-        if (ids.Count > 0)
-            await db.ConversationNotices.Where(n => n.ChatId == chatId && n.ConversationId == conversationId).ExecuteDeleteAsync();
-        return ids;
+        var query = db.Conversations.AsNoTracking().Where(c => c.UserId == userId);
+        var total = await query.CountAsync();
+        var items = await query.OrderBy(c => c.Status).ThenByDescending(c => c.UpdatedAt)
+            .Select(c => new ConversationListItem
+            {
+                Conversation = c,
+                Messages = db.ConversationMessages.Count(m => m.ConversationId == c.Id)
+            })
+            .Skip(skip).Take(take).ToListAsync();
+        return (items, total);
+    }
+
+    /// <summary>Open conversations waiting for an admin's answer.</summary>
+    public async Task<int> CountAwaitingAsync()
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Conversations.CountAsync(c => c.Status == ConversationStatus.Open && c.AwaitingAdmin);
     }
 
     /// <summary>The conversation a bot message of this chat belongs to, or 0.</summary>
