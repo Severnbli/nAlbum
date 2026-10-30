@@ -79,6 +79,7 @@
     "ViewDeleted": "✅ Deleted: {0}",
     "ViewDeletedNotFound": " (not found: {0}).",
     "ViewNumbersNoView": "ℹ️ Open an album first, then send /numbers.",
+    "ButtonGoToPage": "🔎 Go to page",
     "ViewPickPage": "📄 Choose a page.",
     "ViewNumbersCaption": "Numbers: ",
     "StatsNotAllowed": "No access.",

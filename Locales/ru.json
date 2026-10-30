@@ -79,6 +79,7 @@
     "ViewDeleted": "✅ Удалено: {0}",
     "ViewDeletedNotFound": " (не найдено: {0}).",
     "ViewNumbersNoView": "ℹ️ Сначала откройте альбом, потом отправьте /numbers.",
+    "ButtonGoToPage": "🔎 К странице",
     "ViewPickPage": "📄 Выберите страницу.",
     "ViewNumbersCaption": "Номера: ",
     "StatsNotAllowed": "Нет доступа.",

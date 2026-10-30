@@ -280,9 +280,10 @@ public sealed class ViewScreen : Screen
             var current = offset >= lastOffset ? pages : Math.Min(offset / ViewPage + 1, pages);
             bf.AddButtonRow(
                 new ButtonBase("◀", offset > 0 ? PageCb(album, seed, previousOffset, flags) : BotUi.FirstPageCallback),
-                new ButtonBase($"{current}/{pages}", $"gp:{album.Id}:{seed}:{offset}:{flags}:{(current - 1) / GridPage}"),
+                new ButtonBase($"{current}/{pages}", "noop"),
                 new ButtonBase("▶",
                     offset < lastOffset ? PageCb(album, seed, Math.Min(offset + ViewPage, lastOffset), flags) : BotUi.LastPageCallback));
+            bf.AddButtonRow(Ctx.T(LocKey.ButtonGoToPage), $"gp:{album.Id}:{seed}:{offset}:{flags}:{(current - 1) / GridPage}");
         }
 
         if (numbers) bf.AddButtonRow(Ctx.T(LocKey.ButtonDone), PageCb(album, seed, offset, 0));

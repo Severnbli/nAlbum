@@ -96,6 +96,7 @@ public static class LocKey
     public const string ViewDeleted = nameof(ViewDeleted);
     public const string ViewDeletedNotFound = nameof(ViewDeletedNotFound);
     public const string ViewNumbersNoView = nameof(ViewNumbersNoView);
+    public const string ButtonGoToPage = nameof(ButtonGoToPage);
     public const string ViewPickPage = nameof(ViewPickPage);
     public const string ViewNumbersCaption = nameof(ViewNumbersCaption);
     public const string StatsNotAllowed = nameof(StatsNotAllowed);
