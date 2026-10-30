@@ -148,6 +148,14 @@ public static class LocKey
     public const string ButtonNewInvite = nameof(ButtonNewInvite);
     public const string InviteChooseExpiry = nameof(InviteChooseExpiry);
     public const string InviteChooseUses = nameof(InviteChooseUses);
+    public const string InviteMinutes = nameof(InviteMinutes);
+    public const string InviteSeconds = nameof(InviteSeconds);
+    public const string InviteExpiryInvalid = nameof(InviteExpiryInvalid);
+    public const string InviteUsesInvalid = nameof(InviteUsesInvalid);
+    public const string InviteConfirmExpiry = nameof(InviteConfirmExpiry);
+    public const string InviteConfirmUses = nameof(InviteConfirmUses);
+    public const string ButtonYes = nameof(ButtonYes);
+    public const string ButtonNo = nameof(ButtonNo);
     public const string InviteNoLimit = nameof(InviteNoLimit);
     public const string InviteHours = nameof(InviteHours);
     public const string InviteDays = nameof(InviteDays);

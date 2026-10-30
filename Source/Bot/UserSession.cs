@@ -25,13 +25,14 @@ namespace nAlbum.Bot;
 public enum Mode
 {
     Idle = 0, NewTitle = 1, Rename = 2, Adding = 3, Removing = 4, RemovePrompt = 5,
-    InviteForward = 7, SongUpload = 8, Broadcast = 9
+    InviteForward = 7, SongUpload = 8, Broadcast = 9, InviteExpiry = 10, InviteUses = 11
 }
 
 public sealed class UserSession
 {
     public Mode Mode { get; set; } = Mode.Idle;
     public long AlbumId { get; set; }                 // was _albumId
+    public long InviteSeconds { get; set; }           // lifetime picked for the invite link being created, 0 = no limit
     public int MenuMessageId { get; set; }            // the single message with menu buttons (card, list, prompt)
     public int BroadcastMessageId { get; set; }       // admin's message waiting for broadcast confirmation
     public BroadcastDraft Broadcast { get; set; }     // its content, sent to everyone on confirmation

@@ -39,7 +39,7 @@ public sealed class SongScreen : Screen
     private static readonly HashSet<string> AlbumCallbacks = new()
     {
         "al", "mg", "view", "vp", "rnd", "rp", "gp", "add", "done", "rmlist", "rmp", "rmy", "rmc", "ren", "del",
-        "mem", "mu", "mk", "mkok", "mpr", "mde", "mxf", "mto", "mtook", "inv", "invn", "inve", "invc", "invd", "invf",
+        "mem", "mu", "mk", "mkok", "mpr", "mde", "mxf", "mto", "mtook", "inv", "invn", "inve", "invc", "invxy", "invuy", "invd", "invf",
         "song", "songok", "sng", "sngdel"
     };
 

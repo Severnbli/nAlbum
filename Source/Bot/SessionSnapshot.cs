@@ -29,6 +29,7 @@ public sealed class SessionSnapshot
 
     public Mode Mode { get; set; }
     public long AlbumId { get; set; }
+    public long InviteSeconds { get; set; }
     public int MenuMessageId { get; set; }
     public int BroadcastMessageId { get; set; }
     public BroadcastDraft Broadcast { get; set; }
@@ -68,6 +69,7 @@ public sealed class SessionSnapshot
     {
         Mode = s.Mode,
         AlbumId = s.AlbumId,
+        InviteSeconds = s.InviteSeconds,
         MenuMessageId = s.MenuMessageId,
         BroadcastMessageId = s.BroadcastMessageId,
         Broadcast = s.Broadcast,
@@ -105,6 +107,7 @@ public sealed class SessionSnapshot
     {
         s.Mode = Enum.IsDefined(Mode) ? Mode : Mode.Idle;
         s.AlbumId = AlbumId;
+        s.InviteSeconds = InviteSeconds;
         s.MenuMessageId = MenuMessageId;
         s.BroadcastMessageId = BroadcastMessageId;
         s.Broadcast = Broadcast;
