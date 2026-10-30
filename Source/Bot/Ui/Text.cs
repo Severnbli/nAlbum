@@ -23,6 +23,12 @@ public static class Text
 {
     public static string H(string s) => WebUtility.HtmlEncode(s ?? "");
 
+    /// <summary>
+    /// Invisible filler line (Braille blanks). Telegram shrinks inline buttons to the width of a short message,
+    /// so view messages carry it to keep the buttons wide enough to tap.
+    /// </summary>
+    public static readonly string MinWidth = "\n" + new string('\u2800', 30);
+
     public static string Truncate(string s, int max) => s.Length <= max ? s : s[..max];
 
     public static string CleanTitle(string s) =>
