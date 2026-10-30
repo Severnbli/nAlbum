@@ -117,13 +117,11 @@ public sealed class MenuScreen : Screen
         await Ctx.Ui.Show(m, Ctx.T(LocKey.HelpText), bf);
     }
 
-    private const int PrivacyPageRows = 36;   // the policy is static reading text: two pages, not seven
-
     /// <summary>The policy is cut into pages at paragraph breaks; the title repeats on every page. fromEnd = pages back from the last one.</summary>
     private async Task ShowPrivacy(MessageResult m, int fromEnd)
     {
         var parts = Ctx.T(LocKey.PrivacyPolicy).Split("\n\n");
-        var page = Pager.Build(parts[1..], parts[0], fromEnd, PrivacyPageRows);
+        var page = Pager.Build(parts[1..], parts[0], fromEnd);
         var bf = new ButtonForm();
         var nav = page.Nav(n => $"privacy:{n}");
         if (nav != null) bf.AddButtonRow(nav);

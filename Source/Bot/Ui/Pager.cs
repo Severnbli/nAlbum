@@ -66,9 +66,8 @@ public static class Pager
     /// <summary>
     /// Packs blocks (ready HTML, each shorter than a page) into pages; the header is repeated on every page.
     /// fromEnd = pages back from the newest one, clamped to the existing pages.
-    /// maxRows raises the page size for static reading text (the default fits a phone without scrolling).
     /// </summary>
-    public static PagedText Build(IReadOnlyList<string> blocks, string header, int fromEnd, int maxRows = MaxRows)
+    public static PagedText Build(IReadOnlyList<string> blocks, string header, int fromEnd)
     {
         var pages = new List<string>();
         var current = new List<string>();
@@ -76,7 +75,7 @@ public static class Pager
         foreach (var block in blocks)
         {
             var need = Rows(block) + 1;   // + the blank line between blocks
-            if (current.Count > 0 && rows + need > maxRows)
+            if (current.Count > 0 && rows + need > MaxRows)
             {
                 pages.Add(string.Join("\n\n", current));
                 current.Clear();
