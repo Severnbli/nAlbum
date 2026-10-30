@@ -216,7 +216,10 @@ public static class LocKey
     public const string SupportTooLong = nameof(SupportTooLong);
     public const string SupportSlowDown = nameof(SupportSlowDown);
     public const string Banned = nameof(Banned);
-    public const string ButtonReply = nameof(ButtonReply);
+    public const string ButtonReopen = nameof(ButtonReopen);
+    public const string AdminConvReopened = nameof(AdminConvReopened);
+    public const string AdminConvReopenBlocked = nameof(AdminConvReopenBlocked);
+    public const string SupportReopenedByAdmin = nameof(SupportReopenedByAdmin);
     public const string ButtonCloseConversation = nameof(ButtonCloseConversation);
     public const string ButtonAnswer = nameof(ButtonAnswer);
     public const string ButtonHistory = nameof(ButtonHistory);
