@@ -26,6 +26,7 @@ Telegram bot (C# / .NET 10, TelegramBotBase, EF Core + SQLite) for sharing photo
 
 ## Rules
 
+- **Minimum button width**: Telegram shrinks inline buttons to the width of a short message. `BotUi.SayNav` / `EditText` append `Text.MinWidth` (invisible Braille blanks) to every message that has buttons, so send menus, cards and views through `Ctx.Ui` (`Say`, `Show`, `ShowMenu`, `EditNav`). If you call `SendMessage` / `EditMessageText` directly with an inline keyboard, wrap the text in `Text.WithMinWidth(html, buttons)`. Never add the filler by hand elsewhere.
 - **Texts**: never hardcode user-visible strings. Add a `const` to `LocKey` and the key to all three locale files (English falls back, but translate ru and by too). Messages are HTML: escape user data with `Text.H`. Keep texts short and plain.
 - **Callback data** is `prefix:arg:arg`, max 64 bytes. Add a new prefix to the screen's `Callbacks`, and to `SongScreen.AlbumCallbacks` if it stays inside an album (otherwise the album song is removed).
 - **Authorization** is re-checked server-side in every callback and text handler (`ViewableAlbum`, `ManagedAlbum`, `OwnedAlbum`, `CanManage`). Never trust callback data.

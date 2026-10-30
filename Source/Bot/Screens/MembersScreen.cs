@@ -488,7 +488,7 @@ public sealed class MembersScreen : Screen
         try
         {
             await Ctx.Device.Dispatch(a => a.SendMessage(userId,
-                Ctx.Localization.F(language, LocKey.AddedToAlbumNotice, Text.H(album.Title)),
+                Text.WithMinWidth(Ctx.Localization.F(language, LocKey.AddedToAlbumNotice, Text.H(album.Title)), bf),
                 parseMode: ParseMode.Html, replyMarkup: new InlineKeyboardMarkup(bf.ToInlineButtonArray())));
             return true;
         }

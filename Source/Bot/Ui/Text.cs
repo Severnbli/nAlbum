@@ -29,6 +29,9 @@ public static class Text
     /// </summary>
     public static readonly string MinWidth = "\n" + new string('\u2800', 30);
 
+    /// <summary>The text of a message with inline buttons, plus the filler line. Messages without buttons stay as they are.</summary>
+    public static string WithMinWidth(string html, object buttons) => buttons == null ? html : html + MinWidth;
+
     public static string Truncate(string s, int max) => s.Length <= max ? s : s[..max];
 
     /// <summary>Drops control characters (NUL, escapes, ...) from text that is stored or shown.</summary>
