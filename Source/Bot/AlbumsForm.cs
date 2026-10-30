@@ -42,15 +42,17 @@ public class AlbumsForm : FormBase, IStateForm
     private readonly MembersScreen _members;
     private readonly AdminScreen _admin;
     private readonly SongScreen _song;
+    private readonly SupportScreen _support;
     private readonly Dictionary<string, Screen> _byCallback = new();
     private readonly Dictionary<Mode, Screen> _byMode = new();
     private readonly Dictionary<string, Screen> _byCommand = new();
     private int _consumedMessageId;   // handled whole in Load; SentData must not pick it up again
 
     public AlbumsForm(AppConfig config, AlbumService albums, MediaService media, CodeThrottle throttle,
-                      StatsService stats, UserPreferenceService preferences, LocalizationService localization)
+                      StatsService stats, UserPreferenceService preferences, LocalizationService localization,
+                      UserAdminService users, SupportService support)
     {
-        _ctx = new BotContext(this, config, albums, media, throttle, stats, preferences, localization);
+        _ctx = new BotContext(this, config, albums, media, throttle, stats, preferences, localization, users, support);
         _menu = new MenuScreen(_ctx);
         _join = new JoinScreen(_ctx);
         _add = new AddMediaScreen(_ctx);
@@ -58,10 +60,11 @@ public class AlbumsForm : FormBase, IStateForm
         _members = new MembersScreen(_ctx);
         _admin = new AdminScreen(_ctx);
         _song = new SongScreen(_ctx);
+        _support = new SupportScreen(_ctx);
 
         var screens = new Screen[]
         {
-            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, _admin, _members, _song
+            _menu, _join, _add, new AlbumScreen(_ctx), new ViewScreen(_ctx), new RemoveScreen(_ctx), _stats, _admin, _members, _song, _support, new AdminUsersScreen(_ctx)
         };
         foreach (var s in screens)
         {
@@ -91,6 +94,7 @@ public class AlbumsForm : FormBase, IStateForm
         if (!_ctx.IsPrivate) return;
         var from = message.UpdateData.Message?.From ?? message.UpdateData.CallbackQuery?.From;
         await _ctx.Stats.TouchUserAsync(_ctx.UserId, Text.UserName(from));
+        _ctx.Banned = !_ctx.Config.IsAdmin(_ctx.UserId) && await _ctx.Users.IsBannedAsync(_ctx.UserId);
         var telegramLanguage = from?.LanguageCode;
         var preference = await _ctx.Preferences.GetLanguageAsync(_ctx.UserId);
         _ctx.Language = _ctx.Localization.Resolve(preference, telegramLanguage);
@@ -100,6 +104,11 @@ public class AlbumsForm : FormBase, IStateForm
     {
         if (message.IsAction || !_ctx.IsPrivate) return;
         if (message.UpdateData.Type != UpdateType.Message) return;   // ignore edits etc.
+        if (_ctx.Banned)
+        {
+            await _ctx.Ui.Say(_ctx.T(LocKey.Banned));
+            return;
+        }
 
         // a broadcast may itself contain or start with commands; only a bare /cancel leaves the flow
         if (_ctx.Session.Mode == Mode.Broadcast && message.MessageText?.Trim() != "/cancel")
@@ -129,6 +138,12 @@ public class AlbumsForm : FormBase, IStateForm
             return;
         }
 
+        if (message.UpdateData.Message?.ReplyToMessage != null && await _support.TryHandleReply(message.UpdateData.Message))
+        {
+            _consumedMessageId = message.MessageId;
+            return;                                                  // a reply to a support message continues that conversation
+        }
+
         await _add.OnIncomingMessage(message.UpdateData.Message);
         var text = message.MessageText?.Trim();
         if (string.IsNullOrEmpty(text)) return;                      // media is handled in SentData
@@ -139,8 +154,8 @@ public class AlbumsForm : FormBase, IStateForm
     public override async Task SentData(DataResult data)
     {
         // handled in Load; the flow may already be over (Mode.Idle), so the message id is checked as well
-        if (!_ctx.IsPrivate || data.Message?.MessageId == _consumedMessageId || _ctx.Session.Mode is Mode.InviteForward or Mode.Broadcast) return;
-        if (_ctx.Session.Mode is Mode.Removing or Mode.RemovePrompt or Mode.SongUpload && _byMode.TryGetValue(_ctx.Session.Mode, out var owner))
+        if (!_ctx.IsPrivate || _ctx.Banned || data.Message?.MessageId == _consumedMessageId || _ctx.Session.Mode is Mode.InviteForward or Mode.Broadcast) return;
+        if (_ctx.Session.Mode is Mode.Removing or Mode.RemovePrompt or Mode.SongUpload or Mode.Support or Mode.AdminReply && _byMode.TryGetValue(_ctx.Session.Mode, out var owner))
             await owner.OnMedia(data);                               // media picks items to delete, or is the album song
         else
             await _add.OnMedia(data);                                // adds in Mode.Adding, otherwise shows a hint
@@ -148,7 +163,7 @@ public class AlbumsForm : FormBase, IStateForm
 
     public override async Task Edited(MessageResult message)
     {
-        if (!_ctx.IsPrivate) return;
+        if (!_ctx.IsPrivate || _ctx.Banned) return;
         await _add.OnEdited(message);
     }
 
@@ -158,7 +173,16 @@ public class AlbumsForm : FormBase, IStateForm
         if (string.IsNullOrEmpty(data) || !_ctx.IsPrivate) return;
         m.Handled = true;
 
+        if (_ctx.Banned)
+        {
+            await m.ConfirmAction(_ctx.T(LocKey.Banned));
+            return;
+        }
+
         var p = data.Split(':');
+        // leaving the support screens ends writing to a conversation
+        if (_ctx.Session.Mode is Mode.Support or Mode.AdminReply && !_support.Callbacks.Contains(p[0]) && p[0] is not ("noop" or "pgend"))
+            _ctx.Session.Mode = Mode.Idle;
         try
         {
             await _song.OnNavigate(p);                               // leaving the album removes its song

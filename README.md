@@ -15,6 +15,8 @@ nAlbum is a Telegram bot for creating photo and video albums and sharing them wi
 - Set an album song that plays alongside the album without being interrupted by menu changes.
 - Remove items by number with a preview, or directly from a view.
 - See public album, view, and watched-page totals. Configured admins get an admin panel with detailed statistics, album removal, and broadcasts.
+- Write to the admins from the help screen (🆘 Support), reply or close the conversation.
+- Admins can list users, ban or unban them, delete all of a user's data, message a user, and answer or close support conversations (in the admin panel or by replying to a notification).
 - Read the privacy policy in the bot (`/privacy`).
 
 ## Roles

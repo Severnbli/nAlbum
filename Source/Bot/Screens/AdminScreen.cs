@@ -15,6 +15,7 @@
 */
 
 using nAlbum.Bot.Ui;
+using nAlbum.Data;
 using nAlbum.Services;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -97,11 +98,15 @@ public sealed class AdminScreen : Screen
                 if (p[0] == "aa")
                 {
                     var media = await Ctx.Media.MediaCount(album.Id);
-                    var members = await Ctx.Albums.MemberCount(album.Id);
+                    var people = await Ctx.Albums.ListMembers(album);
+                    var members = people.Count - 1; // the owner is listed separately
+                    var owner = PersonName(people.First(x => x.Role == AlbumRole.Owner));
+                    var managers = people.Where(x => x.Role == AlbumRole.Manager).Select(PersonName).ToList();
                     bf.AddButtonRow(Ctx.T(LocKey.ButtonDeleteAlbum), $"adel:{album.Id}:{page}");
                     bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), $"aal:{page}");
                     await Ctx.Ui.Show(m, Ctx.F(LocKey.AdminAlbumDetails, album.Id, Text.H(album.Title),
-                        album.CreatedAt.ToString("yyyy-MM-dd"), media, members), bf);
+                        album.CreatedAt.ToString("yyyy-MM-dd"), media, members, owner,
+                        managers.Count == 0 ? Ctx.T(LocKey.StatsEmpty) : string.Join(", ", managers)), bf);
                 }
                 else
                 {
@@ -131,11 +136,17 @@ public sealed class AdminScreen : Screen
         }
     }
 
+    /// <summary>"Name (id)" with the name escaped for HTML.</summary>
+    private string PersonName(MemberInfo x) =>
+        $"{Text.H(string.IsNullOrWhiteSpace(x.Name) ? Ctx.F(LocKey.MemberUnknown, x.UserId) : x.Name)} (<code>{x.UserId}</code>)";
+
     private async Task ShowPanel(MessageResult m)
     {
         var bf = new ButtonForm();
         bf.AddButtonRow(Ctx.T(LocKey.MenuDetailedStatistics), "stats");
         bf.AddButtonRow(Ctx.T(LocKey.AdminRemoveAlbums), "aal:0");
+        bf.AddButtonRow(Ctx.T(LocKey.AdminUsers), "aus:0");
+        bf.AddButtonRow(Ctx.T(LocKey.AdminConversations), "acv:0");
         bf.AddButtonRow(Ctx.T(LocKey.AdminBroadcast), "abc");
         bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
         await Ctx.Ui.Show(m, Ctx.T(LocKey.AdminTitle), bf);

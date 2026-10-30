@@ -100,6 +100,44 @@ public class BotUser
     public string Name { get; set; }   // Telegram first and last name, refreshed while the user is active
     public DateTime FirstSeenAt { get; set; }
     public DateTime LastSeenAt { get; set; }
+    public bool IsBanned { get; set; }  // banned users get no answers from the bot
+}
+
+public enum ConversationStatus { Open = 0, Closed = 1 }
+
+/// <summary>A support conversation between one user and the bot admins.</summary>
+public class Conversation
+{
+    public long Id { get; set; }
+    public long UserId { get; set; }
+    public ConversationStatus Status { get; set; } = ConversationStatus.Open;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public bool AwaitingAdmin { get; set; }   // the last message came from the user
+}
+
+public class ConversationMessage
+{
+    public long Id { get; set; }
+    public long ConversationId { get; set; }
+    public bool FromAdmin { get; set; }
+    public string Text { get; set; }
+    public DateTime SentAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>Remembers which conversation a bot message in a chat belongs to, so a Telegram reply to it continues that conversation.</summary>
+public class ConversationNotice
+{
+    public long ChatId { get; set; }
+    public int MessageId { get; set; }
+    public long ConversationId { get; set; }
+}
+
+public class ConversationListItem
+{
+    public Conversation Conversation { get; set; }
+    public string UserName { get; set; }
+    public int Messages { get; set; }
 }
 
 public class UserPreference

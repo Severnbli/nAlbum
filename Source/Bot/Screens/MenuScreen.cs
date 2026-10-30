@@ -111,6 +111,8 @@ public sealed class MenuScreen : Screen
     private async Task ShowHelp(MessageResult m)
     {
         var bf = new ButtonForm();
+        if (!Ctx.Config.IsAdmin(Ctx.UserId) && Ctx.Config.AdminIds.Count > 0)
+            bf.AddButtonRow(Ctx.T(LocKey.ButtonSupport), "sup");
         bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
         await Ctx.Ui.Show(m, Ctx.T(LocKey.HelpText), bf);
     }
