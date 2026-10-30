@@ -24,7 +24,7 @@ namespace nAlbum.Data;
 /// </summary>
 public static class SchemaUpgrader
 {
-    public const int LatestVersion = 5;
+    public const int LatestVersion = 6;
 
     public static async Task RunAsync(IDbContextFactory<AlbumDb> factory, string dbPath)
     {
@@ -47,6 +47,7 @@ public static class SchemaUpgrader
             if (version < 3) await UpgradeTo3(db);
             if (version < 4) await UpgradeTo4(db);
             if (version < 5) await UpgradeTo5(db);
+            if (version < 6) await UpgradeTo6(db);
         }
 
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
@@ -178,6 +179,47 @@ public static class SchemaUpgrader
         await using var tx = await db.Database.BeginTransactionAsync();
         await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Albums\" ADD COLUMN \"SongFileId\" TEXT NULL");
         await SetVersion(db, 5);
+        await tx.CommitAsync();
+    }
+
+    /// <summary>User bans and support conversations.</summary>
+    private static async Task UpgradeTo6(AlbumDb db)
+    {
+        string[] steps =
+        {
+            "ALTER TABLE \"BotUsers\" ADD COLUMN \"IsBanned\" INTEGER NOT NULL DEFAULT 0",
+
+            "CREATE TABLE IF NOT EXISTS \"Conversations\" (" +
+            " \"Id\" INTEGER NOT NULL CONSTRAINT \"PK_Conversations\" PRIMARY KEY AUTOINCREMENT," +
+            " \"UserId\" INTEGER NOT NULL," +
+            " \"Status\" INTEGER NOT NULL," +
+            " \"CreatedAt\" TEXT NOT NULL," +
+            " \"UpdatedAt\" TEXT NOT NULL," +
+            " \"AwaitingAdmin\" INTEGER NOT NULL)",
+            "CREATE INDEX IF NOT EXISTS \"IX_Conversations_UserId_Status\" ON \"Conversations\" (\"UserId\", \"Status\")",
+            "CREATE INDEX IF NOT EXISTS \"IX_Conversations_Status_UpdatedAt\" ON \"Conversations\" (\"Status\", \"UpdatedAt\")",
+
+            "CREATE TABLE IF NOT EXISTS \"ConversationMessages\" (" +
+            " \"Id\" INTEGER NOT NULL CONSTRAINT \"PK_ConversationMessages\" PRIMARY KEY AUTOINCREMENT," +
+            " \"ConversationId\" INTEGER NOT NULL," +
+            " \"FromAdmin\" INTEGER NOT NULL," +
+            " \"Text\" TEXT NOT NULL," +
+            " \"SentAt\" TEXT NOT NULL," +
+            " CONSTRAINT \"FK_ConversationMessages_Conversations_ConversationId\" FOREIGN KEY (\"ConversationId\") REFERENCES \"Conversations\" (\"Id\") ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS \"IX_ConversationMessages_ConversationId_Id\" ON \"ConversationMessages\" (\"ConversationId\", \"Id\")",
+
+            "CREATE TABLE IF NOT EXISTS \"ConversationNotices\" (" +
+            " \"ChatId\" INTEGER NOT NULL," +
+            " \"MessageId\" INTEGER NOT NULL," +
+            " \"ConversationId\" INTEGER NOT NULL," +
+            " CONSTRAINT \"PK_ConversationNotices\" PRIMARY KEY (\"ChatId\", \"MessageId\")," +
+            " CONSTRAINT \"FK_ConversationNotices_Conversations_ConversationId\" FOREIGN KEY (\"ConversationId\") REFERENCES \"Conversations\" (\"Id\") ON DELETE CASCADE)",
+            "CREATE INDEX IF NOT EXISTS \"IX_ConversationNotices_ConversationId\" ON \"ConversationNotices\" (\"ConversationId\")",
+        };
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+        foreach (var sql in steps) await db.Database.ExecuteSqlRawAsync(sql);
+        await SetVersion(db, 6);
         await tx.CommitAsync();
     }
 }

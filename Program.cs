@@ -39,6 +39,8 @@ var services = new ServiceCollection()
     .AddSingleton<MediaService>()
     .AddSingleton<CodeThrottle>()
     .AddSingleton<UserPreferenceService>()
+    .AddSingleton<UserAdminService>()
+    .AddSingleton<SupportService>()
     .AddSingleton(LocalizationService.Load(config.LocalesDir))
     .BuildServiceProvider();
 

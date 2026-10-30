@@ -31,11 +31,11 @@ public sealed class BotContext
 
     public BotContext(FormBase form, AppConfig config, AlbumService albums, MediaService media,
                       CodeThrottle throttle, StatsService stats, UserPreferenceService preferences,
-                                            LocalizationService localization)
+                      LocalizationService localization, UserAdminService users, SupportService support)
                           {
                               _form = form;
                               Config = config; Albums = albums; Media = media; Throttle = throttle; Stats = stats; Preferences = preferences;
-                              Localization = localization;
+                              Localization = localization; Users = users; Support = support;
                               Language = LocalizationService.DefaultCode;
         Session = new UserSession();
         Ui = new BotUi(this);
@@ -54,6 +54,9 @@ public sealed class BotContext
     public StatsService Stats { get; }
     public UserPreferenceService Preferences { get; }
     public LocalizationService Localization { get; }
+    public UserAdminService Users { get; }
+    public SupportService Support { get; }
+    public bool Banned { get; set; }                   // set for every update in PreLoad
     public string Language { get; set; }               // language code, e.g. "en"
     public UserSession Session { get; }
     public BotUi Ui { get; }

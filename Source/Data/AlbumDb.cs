@@ -32,6 +32,9 @@ public class AlbumDb : DbContext
     public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
     public DbSet<AlbumViewStat> AlbumViewStats => Set<AlbumViewStat>();
     public DbSet<Counter> Counters => Set<Counter>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+    public DbSet<ConversationNotice> ConversationNotices => Set<ConversationNotice>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -58,6 +61,28 @@ public class AlbumDb : DbContext
         {
             e.HasKey(x => x.UserId);
             e.Property(x => x.UserId).ValueGeneratedNever();
+            e.Property(x => x.IsBanned).HasDefaultValue(false);
+        });
+
+        b.Entity<Conversation>(e =>
+        {
+            e.Property(x => x.Status).HasConversion<int>();
+            e.HasIndex(x => new { x.UserId, x.Status });
+            e.HasIndex(x => new { x.Status, x.UpdatedAt });
+        });
+
+        b.Entity<ConversationMessage>(e =>
+        {
+            e.Property(x => x.Text).IsRequired().HasMaxLength(4000);
+            e.HasOne<Conversation>().WithMany().HasForeignKey(x => x.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.ConversationId, x.Id });
+        });
+
+        b.Entity<ConversationNotice>(e =>
+        {
+            e.HasKey(x => new { x.ChatId, x.MessageId });
+            e.HasOne<Conversation>().WithMany().HasForeignKey(x => x.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.ConversationId);
         });
 
         b.Entity<UserPreference>(e =>

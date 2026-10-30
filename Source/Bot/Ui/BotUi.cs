@@ -48,7 +48,7 @@ public sealed class BotUi
 
     /// <summary>Sends a message that is not tracked as the menu (view navigation messages).</summary>
     public Task<Message> SayNav(string html, ButtonForm bf = null) =>
-        Ctx.Device.Dispatch(a => a.SendMessage(Ctx.Device.DeviceId, html, parseMode: ParseMode.Html,
+        Ctx.Device.Dispatch(a => a.SendMessage(Ctx.Device.DeviceId, Text.WithMinWidth(html, bf), parseMode: ParseMode.Html,
             replyMarkup: Markup(bf), linkPreviewOptions: NoLinkPreview));
 
     /// <summary>Makes messageId the menu message and deletes the previous one (unless it is the view navigation).</summary>
@@ -66,7 +66,7 @@ public sealed class BotUi
         bf == null ? null : new InlineKeyboardMarkup(bf.ToInlineButtonArray());
 
     private Task EditText(int messageId, string html, ButtonForm bf) =>
-        Ctx.Device.Dispatch(a => a.EditMessageText(Ctx.Device.DeviceId, messageId, html, parseMode: ParseMode.Html,
+        Ctx.Device.Dispatch(a => a.EditMessageText(Ctx.Device.DeviceId, messageId, Text.WithMinWidth(html, bf), parseMode: ParseMode.Html,
             replyMarkup: Markup(bf), linkPreviewOptions: NoLinkPreview));
 
     /// <summary>Edits the message the button belongs to; falls back to a new message.</summary>

@@ -149,7 +149,7 @@ public sealed class ViewScreen : Screen
 
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), PageCb(album, seed, offset, flags));
         var title = Ctx.F(seed == 0 ? LocKey.ViewPageOrdered : LocKey.ViewPageRandom, Text.H(album.Title));
-        await Ctx.Ui.EditNav(title + "\n\n" + Ctx.T(LocKey.ViewPickPage) + Text.MinWidth, bf);
+        await Ctx.Ui.EditNav(title + "\n\n" + Ctx.T(LocKey.ViewPickPage), bf);
     }
 
     /// <summary>Callback that re-opens a page: seed 0 = ordered view (vp), seed > 0 = random view (rp).</summary>
@@ -266,7 +266,6 @@ public sealed class ViewScreen : Screen
         if (deleting) hints.Add(Ctx.T(LocKey.ViewDeleteHint).TrimStart('\n'));
         if (hints.Count > 0) text += "\n\n" + string.Join("\n\n", hints);
         if (note != null) text = note + "\n\n" + text;
-        text += Text.MinWidth;
 
         var bf = new ButtonForm();
         var lastOffset = Math.Max(total - ViewPage, 0);
@@ -280,9 +279,10 @@ public sealed class ViewScreen : Screen
             var current = offset >= lastOffset ? pages : Math.Min(offset / ViewPage + 1, pages);
             bf.AddButtonRow(
                 new ButtonBase("◀", offset > 0 ? PageCb(album, seed, previousOffset, flags) : BotUi.FirstPageCallback),
-                new ButtonBase($"{current}/{pages}", $"gp:{album.Id}:{seed}:{offset}:{flags}:{(current - 1) / GridPage}"),
+                new ButtonBase($"{current}/{pages}", "noop"),
                 new ButtonBase("▶",
                     offset < lastOffset ? PageCb(album, seed, Math.Min(offset + ViewPage, lastOffset), flags) : BotUi.LastPageCallback));
+            bf.AddButtonRow(Ctx.T(LocKey.ButtonGoToPage), $"gp:{album.Id}:{seed}:{offset}:{flags}:{(current - 1) / GridPage}");
         }
 
         if (numbers) bf.AddButtonRow(Ctx.T(LocKey.ButtonDone), PageCb(album, seed, offset, 0));
