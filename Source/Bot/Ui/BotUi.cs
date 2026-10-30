@@ -118,6 +118,23 @@ public sealed class BotUi
         await Say(html, bf);
     }
 
+    /// <summary>
+    /// Sends a plain notice to another user in their language, ignoring failures (they may have blocked the bot).
+    /// Pass the language resolved beforehand when their data is about to be deleted.
+    /// </summary>
+    public async Task Notify(long chatId, string key, string language = null)
+    {
+        try
+        {
+            language ??= Ctx.Localization.Resolve(await Ctx.Preferences.GetLanguageAsync(chatId), null);
+            await Ctx.Device.Dispatch(a => a.SendMessage(chatId, Ctx.Localization.T(language, key), parseMode: ParseMode.Html));
+        }
+        catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+        {
+            await Console.Error.WriteLineAsync($"Notice to {chatId} failed: {ex.Message}");
+        }
+    }
+
     public async Task TryDelete(int messageId)
     {
         try

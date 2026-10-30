@@ -93,7 +93,7 @@ public class AlbumsForm : FormBase, IStateForm
     {
         if (!_ctx.IsPrivate) return;
         var from = message.UpdateData.Message?.From ?? message.UpdateData.CallbackQuery?.From;
-        await _ctx.Stats.TouchUserAsync(_ctx.UserId, Text.UserName(from));
+        await _ctx.Stats.TouchUserAsync(_ctx.UserId, Text.UserName(from), Text.Username(from));
         _ctx.Banned = !_ctx.Config.IsAdmin(_ctx.UserId) && await _ctx.Users.IsBannedAsync(_ctx.UserId);
         var telegramLanguage = from?.LanguageCode;
         var preference = await _ctx.Preferences.GetLanguageAsync(_ctx.UserId);

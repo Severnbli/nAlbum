@@ -236,6 +236,16 @@
     "ConvMsgAdmin": "🛠 Admin · {0}",
     "ConvHistoryOmitted": "… earlier messages are hidden",
     "PageFirst": "This is the first page.",
-    "PageLast": "This is the last page."
+    "PageLast": "This is the last page.",
+    "ConvMsgYou": "👤 You · {0}",
+    "SupportMenu": "🆘 <b>Support</b>\n\nWrite to the admins or read your earlier conversations.",
+    "SupportMenuOpen": "🆘 <b>Support</b>\n\nYou have an open conversation. Write to continue it, or read it first.",
+    "SupportListTitle": "📜 <b>My conversations</b>\n💬 open · ✅ closed",
+    "SupportConvHeader": "💬 <b>#{0}</b> · {1}",
+    "ButtonWriteSupport": "✍️ Write",
+    "ButtonMyConversations": "📜 My conversations",
+    "UserBannedNotice": "🚫 An admin blocked you. The bot will not answer you.",
+    "UserUnbannedNotice": "✅ An admin unblocked you. You can use the bot again.",
+    "UserDataDeletedNotice": "🗑 An admin deleted all your data: albums, files and settings."
   }
 }

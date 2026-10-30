@@ -92,12 +92,14 @@ public class MemberInfo
     public long UserId { get; set; }
     public AlbumRole Role { get; set; }
     public string Name { get; set; }   // null when the user has not been seen with a name yet
+    public string Username { get; set; }   // Telegram @username without the @, null when the user has none
 }
 
 public class BotUser
 {
     public long UserId { get; set; }
     public string Name { get; set; }   // Telegram first and last name, refreshed while the user is active
+    public string Username { get; set; }   // Telegram @username without the @, refreshed with the name
     public DateTime FirstSeenAt { get; set; }
     public DateTime LastSeenAt { get; set; }
     public bool IsBanned { get; set; }  // banned users get no answers from the bot

@@ -138,15 +138,16 @@ public sealed class AdminScreen : Screen
 
     /// <summary>"Name (id)" with the name escaped for HTML.</summary>
     private string PersonName(MemberInfo x) =>
-        $"{Text.H(string.IsNullOrWhiteSpace(x.Name) ? Ctx.F(LocKey.MemberUnknown, x.UserId) : x.Name)} (<code>{x.UserId}</code>)";
+        $"{Text.H(string.IsNullOrWhiteSpace(x.Name) ? Ctx.F(LocKey.MemberUnknown, x.UserId) : x.Name)}" +
+        $"{(string.IsNullOrEmpty(x.Username) ? "" : " @" + Text.H(x.Username))} (<code>{x.UserId}</code>)";
 
     private async Task ShowPanel(MessageResult m)
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.T(LocKey.MenuDetailedStatistics), "stats");
-        bf.AddButtonRow(Ctx.T(LocKey.AdminRemoveAlbums), "aal:0");
-        bf.AddButtonRow(Ctx.T(LocKey.AdminUsers), "aus:0");
-        bf.AddButtonRow(Ctx.T(LocKey.AdminConversations), "acv:0");
+        var waiting = await Ctx.Support.CountAwaitingAsync();   // conversations waiting for an answer
+        var conversations = Ctx.T(LocKey.AdminConversations) + (waiting > 0 ? $" 🔔{waiting}" : "");
+        bf.AddButtonRow(new ButtonBase(conversations, "acv:0"), new ButtonBase(Ctx.T(LocKey.AdminUsers), "aus:0"));
+        bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.AdminRemoveAlbums), "aal:0"), new ButtonBase(Ctx.T(LocKey.MenuDetailedStatistics), "stats"));
         bf.AddButtonRow(Ctx.T(LocKey.AdminBroadcast), "abc");
         bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
         await Ctx.Ui.Show(m, Ctx.T(LocKey.AdminTitle), bf);
