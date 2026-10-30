@@ -35,7 +35,7 @@ public sealed record PagedText(string Text, int Index, int Pages)
 /// </summary>
 public static class Pager
 {
-    public const int MaxRows = 14;     // text rows that fit a phone screen together with the buttons
+    public const int MaxRows = 28;     // text rows per page (twice a phone screen, a little scrolling is fine)
     public const int RowChars = 36;    // characters per row on a narrow phone
     public const int ChunkChars = 300; // longest piece of one entry; longer text continues in the next block
 
@@ -66,8 +66,9 @@ public static class Pager
     /// <summary>
     /// Packs blocks (ready HTML, each shorter than a page) into pages; the header is repeated on every page.
     /// fromEnd = pages back from the newest one, clamped to the existing pages.
+    /// maxRows raises the page size for static reading text (the default fits a phone without scrolling).
     /// </summary>
-    public static PagedText Build(IReadOnlyList<string> blocks, string header, int fromEnd)
+    public static PagedText Build(IReadOnlyList<string> blocks, string header, int fromEnd, int maxRows = MaxRows)
     {
         var pages = new List<string>();
         var current = new List<string>();
@@ -75,7 +76,7 @@ public static class Pager
         foreach (var block in blocks)
         {
             var need = Rows(block) + 1;   // + the blank line between blocks
-            if (current.Count > 0 && rows + need > MaxRows)
+            if (current.Count > 0 && rows + need > maxRows)
             {
                 pages.Add(string.Join("\n\n", current));
                 current.Clear();
