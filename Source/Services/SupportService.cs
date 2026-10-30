@@ -91,6 +91,16 @@ public sealed class SupportService
                 .SetProperty(c => c.AwaitingAdmin, false)) > 0;
     }
 
+    /// <summary>False when it was not closed.</summary>
+    public async Task<bool> ReopenAsync(long id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        return await db.Conversations.Where(c => c.Id == id && c.Status == ConversationStatus.Closed)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, ConversationStatus.Open)
+                .SetProperty(c => c.AwaitingAdmin, false)
+                .SetProperty(c => c.UpdatedAt, DateTime.UtcNow)) > 0;
+    }
+
     /// <summary>Open conversations first, those waiting for an answer on top, then the most recent.</summary>
     public async Task<(List<ConversationListItem> Items, int Total)> ListAsync(int skip, int take)
     {

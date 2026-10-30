@@ -199,7 +199,6 @@
     "SupportTooLong": "⚠️ Слишком длинно. Не больше {0} символов.",
     "SupportSlowDown": "⏳ Слишком быстро. Подождите минуту.",
     "Banned": "🚫 Вы заблокированы в этом боте.",
-    "ButtonReply": "↩️ Ответить",
     "ButtonCloseConversation": "🔒 Закрыть",
     "ButtonAnswer": "✍️ Ответ",
     "ButtonHistory": "📜 История",
@@ -246,6 +245,10 @@
     "ButtonMyConversations": "📜 Мои обращения",
     "UserBannedNotice": "🚫 Админ заблокировал вас. Бот не будет вам отвечать.",
     "UserUnbannedNotice": "✅ Админ разблокировал вас. Можно снова пользоваться ботом.",
-    "UserDataDeletedNotice": "🗑 Админ удалил все ваши данные: альбомы, файлы и настройки."
+    "UserDataDeletedNotice": "🗑 Админ удалил все ваши данные: альбомы, файлы и настройки.",
+    "ButtonReopen": "🔓 Открыть снова",
+    "AdminConvReopened": "Открыто снова.",
+    "AdminConvReopenBlocked": "У пользователя уже есть открытое обращение: #{0}.",
+    "SupportReopenedByAdmin": "🔓 Админ снова открыл обращение. Можно ответить."
   }
 }

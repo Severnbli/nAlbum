@@ -199,7 +199,6 @@
     "SupportTooLong": "⚠️ Too long. Keep it under {0} characters.",
     "SupportSlowDown": "⏳ Too fast. Wait a minute.",
     "Banned": "🚫 You are banned from this bot.",
-    "ButtonReply": "↩️ Reply",
     "ButtonCloseConversation": "🔒 Close",
     "ButtonAnswer": "✍️ Answer",
     "ButtonHistory": "📜 History",
@@ -246,6 +245,10 @@
     "ButtonMyConversations": "📜 My conversations",
     "UserBannedNotice": "🚫 An admin blocked you. The bot will not answer you.",
     "UserUnbannedNotice": "✅ An admin unblocked you. You can use the bot again.",
-    "UserDataDeletedNotice": "🗑 An admin deleted all your data: albums, files and settings."
+    "UserDataDeletedNotice": "🗑 An admin deleted all your data: albums, files and settings.",
+    "ButtonReopen": "🔓 Reopen",
+    "AdminConvReopened": "Reopened.",
+    "AdminConvReopenBlocked": "The user already has an open conversation: #{0}.",
+    "SupportReopenedByAdmin": "🔓 The admin reopened the conversation. You can answer."
   }
 }

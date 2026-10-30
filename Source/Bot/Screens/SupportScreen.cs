@@ -37,19 +37,18 @@ namespace nAlbum.Bot.Screens;
 public sealed class SupportScreen : Screen
 {
     private const int ListPage = 8;
-    private const int HistoryTake = 40;
-    private const int HistoryChars = 3000;
+    private const int HistoryTake = 200;   // newest messages of a conversation that the viewer pages through
 
     public SupportScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "sup", "supw", "sul", "sud", "supr", "supc", "acv", "acd", "acr", "acc", "auc" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "sup", "supw", "sul", "sud", "supr", "supc", "acv", "acd", "acr", "acc", "acx", "auc" };
     public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.Support, Mode.AdminReply };
 
     private bool IsAdmin => Ctx.Config.IsAdmin(Ctx.UserId);
 
     public override async Task OnCallback(MessageResult m, string[] p)
     {
-        if (p[0] is "acv" or "acd" or "acr" or "acc" or "auc" && !IsAdmin)
+        if (p[0] is "acv" or "acd" or "acr" or "acc" or "acx" or "auc" && !IsAdmin)
         {
             await m.ConfirmAction(Ctx.T(LocKey.StatsNotAllowed));
             return;
@@ -67,7 +66,7 @@ public sealed class SupportScreen : Screen
                 await m.ConfirmAction();
                 if (IsAdmin || Ctx.Config.AdminIds.Count == 0)
                 {
-                    await Ctx.Ui.Show(m, Ctx.T(LocKey.SupportUnavailable), HelpButtons());
+                    await ShowFrom(m, Ctx.T(LocKey.SupportUnavailable), HelpButtons());
                     return;
                 }
 
@@ -91,7 +90,9 @@ public sealed class SupportScreen : Screen
                 }
 
                 await m.ConfirmAction();
-                await Ctx.Ui.Show(m, await HistoryText(conversation, true), UserHistoryButtons(conversation, Text.Int(p, 2)));
+                Ctx.Session.Mode = Mode.Idle;   // reading ends answer mode, like for admins
+                var view = await HistoryView(conversation, true, Text.Int(p, 3));
+                await ShowFrom(m, view.Text, UserHistoryButtons(conversation, Text.Int(p, 2), view));
                 break;
             }
 
@@ -101,16 +102,17 @@ public sealed class SupportScreen : Screen
                 var conversation = await Ctx.Support.GetAsync(Text.Long(p, 1));
                 if (conversation == null || conversation.UserId != Ctx.UserId)
                 {
-                    await m.ConfirmAction(Ctx.T(LocKey.ErrorNotAllowed));
+                    await m.ConfirmAction(Ctx.T(LocKey.AdminConvGone));
+                    return;
+                }
+
+                if (conversation.Status != ConversationStatus.Open) // a button on an old notice: just say so, change nothing
+                {
+                    await m.ConfirmAction(Ctx.T(LocKey.SupportClosed));
                     return;
                 }
 
                 await m.ConfirmAction();
-                if (conversation.Status != ConversationStatus.Open)
-                {
-                    await Ctx.Ui.Show(m, Ctx.T(LocKey.SupportAlreadyClosed), HelpButtons());
-                    return;
-                }
 
                 if (p[0] == "supr") await ShowUserPrompt(m, conversation.Id, false);
                 else await CloseByUser(m, conversation);
@@ -133,7 +135,7 @@ public sealed class SupportScreen : Screen
 
                 await m.ConfirmAction();
                 Ctx.Session.Mode = Mode.Idle;
-                await ShowHistory(m, conversation, Text.Int(p, 2));
+                await ShowHistory(m, conversation, Text.Int(p, 2), Text.Int(p, 3));
                 break;
             }
 
@@ -149,11 +151,35 @@ public sealed class SupportScreen : Screen
                 await m.ConfirmAction();
                 if (conversation.Status != ConversationStatus.Open)
                 {
-                    await ShowHistory(m, conversation, Text.Int(p, 2));
+                    await ShowHistory(m, conversation, Text.Int(p, 2), 0);
                     return;
                 }
 
                 await StartAnswer(m, conversation.UserId, conversation.Id);
+                break;
+            }
+
+            case "acx": // reopen a closed conversation
+            {
+                var conversation = await Ctx.Support.GetAsync(Text.Long(p, 1));
+                if (conversation == null)
+                {
+                    await m.ConfirmAction(Ctx.T(LocKey.AdminConvGone));
+                    return;
+                }
+
+                var other = await Ctx.Support.GetOpenForUserAsync(conversation.UserId);
+                if (other != null && other.Id != conversation.Id)
+                {
+                    await m.ConfirmAction(Ctx.F(LocKey.AdminConvReopenBlocked, other.Id));
+                    return;
+                }
+
+                await m.ConfirmAction(Ctx.T(LocKey.AdminConvReopened));
+                if (await Ctx.Support.ReopenAsync(conversation.Id))
+                    await Push(conversation.UserId, conversation.Id, l => Ctx.Localization.T(l, LocKey.SupportReopenedByAdmin),
+                        l => UserReplyButtons(l, conversation.Id));
+                await ShowHistory(m, await Ctx.Support.GetAsync(conversation.Id), Text.Int(p, 2), 0);
                 break;
             }
 
@@ -249,6 +275,16 @@ public sealed class SupportScreen : Screen
     }
 
     // -------------------------------------------------------------- user side
+    /// <summary>
+    /// Like <c>Ctx.Ui.Show</c>, but a button on a persistent conversation notice never edits that notice:
+    /// the target opens as a new menu message and the notice stays in the chat as it was.
+    /// </summary>
+    private async Task ShowFrom(MessageResult m, string html, ButtonForm bf)
+    {
+        if (m.IsAction && await Ctx.Support.FindNoticeAsync(Ctx.UserId, m.MessageId) != 0) await Ctx.Ui.Say(html, bf);
+        else await Ctx.Ui.Show(m, html, bf);
+    }
+
     private ButtonForm HelpButtons(string language = null)
     {
         var bf = new ButtonForm();
@@ -266,8 +302,10 @@ public sealed class SupportScreen : Screen
     private ButtonForm UserButtons(long conversationId)
     {
         var bf = new ButtonForm();
-        if (conversationId != 0) bf.AddButtonRow(Ctx.T(LocKey.ButtonCloseConversation), $"supc:{conversationId}");
-        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "sup");
+        if (conversationId != 0)
+            bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonHistory), $"sud:{conversationId}:0:0"),
+                new ButtonBase(Ctx.T(LocKey.ButtonStopAnswering), "sup"));
+        else bf.AddButtonRow(Ctx.T(LocKey.ButtonStopAnswering), "sup");
         return bf;
     }
 
@@ -280,7 +318,7 @@ public sealed class SupportScreen : Screen
         Ctx.Session.ConversationId = 0;
         if (IsAdmin || Ctx.Config.AdminIds.Count == 0)
         {
-            await Ctx.Ui.Show(m, Ctx.T(LocKey.SupportUnavailable), HelpButtons());
+            await ShowFrom(m, Ctx.T(LocKey.SupportUnavailable), HelpButtons());
             return;
         }
 
@@ -289,7 +327,7 @@ public sealed class SupportScreen : Screen
         bf.AddButtonRow(Ctx.T(LocKey.ButtonWriteSupport), "supw");
         bf.AddButtonRow(Ctx.T(LocKey.ButtonMyConversations), "sul:0");
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "help");
-        await Ctx.Ui.Show(m, Ctx.T(open != null ? LocKey.SupportMenuOpen : LocKey.SupportMenu), bf);
+        await ShowFrom(m, Ctx.T(open != null ? LocKey.SupportMenuOpen : LocKey.SupportMenu), bf);
     }
 
     private async Task ShowUserList(MessageResult m, int page)
@@ -313,15 +351,17 @@ public sealed class SupportScreen : Screen
         var nav = BotUi.PageRow(page, total, ListPage, n => $"sul:{n}");
         if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "sup");
-        await Ctx.Ui.Show(m, text, bf);
+        await ShowFrom(m, text, bf);
     }
 
-    private ButtonForm UserHistoryButtons(Conversation c, int page)
+    private ButtonForm UserHistoryButtons(Conversation c, int page, PagedText view)
     {
         var bf = new ButtonForm();
         if (c.Status == ConversationStatus.Open)
-            bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonReply), $"supr:{c.Id}"),
+            bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonAnswer), $"supr:{c.Id}"),
                 new ButtonBase(Ctx.T(LocKey.ButtonCloseConversation), $"supc:{c.Id}"));
+        var nav = view.Nav(n => $"sud:{c.Id}:{page}:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), $"sul:{page}");
         return bf;
     }
@@ -330,7 +370,7 @@ public sealed class SupportScreen : Screen
     private ButtonForm HistoryOnlyButtons(string language, long conversationId)
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.Localization.T(language, LocKey.ButtonHistory), $"sud:{conversationId}:0");
+        bf.AddButtonRow(Ctx.Localization.T(language, LocKey.ButtonHistory), $"sud:{conversationId}:0:0");
         return bf;
     }
 
@@ -338,7 +378,7 @@ public sealed class SupportScreen : Screen
     {
         Ctx.Session.Mode = Mode.Support;
         Ctx.Session.ConversationId = conversationId;
-        await Ctx.Ui.Show(m, UserPromptText(open || conversationId != 0), UserButtons(conversationId));
+        await ShowFrom(m, UserPromptText(open || conversationId != 0), UserButtons(conversationId));
     }
 
     private async Task CloseByUser(MessageResult m, Conversation conversation)
@@ -352,7 +392,7 @@ public sealed class SupportScreen : Screen
                 await Push(adminId, conversation.Id, l => Ctx.Localization.F(l, LocKey.AdminConvClosedByUser, conversation.Id, Text.H(name)), null);
         }
 
-        await Ctx.Ui.Show(m, Ctx.T(LocKey.SupportClosed), SupportBackButtons());
+        await ShowFrom(m, Ctx.T(LocKey.SupportClosed), SupportBackButtons());
     }
 
     private async Task OnUserMessage(string raw, long forcedConversationId)
@@ -437,7 +477,7 @@ public sealed class SupportScreen : Screen
         var nav = BotUi.PageRow(page, total, ListPage, n => $"acv:{n}");
         if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "admin");
-        await Ctx.Ui.Show(m, text, bf);
+        await ShowFrom(m, text, bf);
     }
 
     private ButtonForm ListBackButtons()
@@ -447,42 +487,51 @@ public sealed class SupportScreen : Screen
         return bf;
     }
 
-    private ButtonForm HistoryButtons(Conversation c, int page)
+    private ButtonForm HistoryButtons(Conversation c, int page, PagedText view = null)
     {
         var bf = new ButtonForm();
         if (c.Status == ConversationStatus.Open)
             bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonAnswer), $"acr:{c.Id}:{page}"),
                 new ButtonBase(Ctx.T(LocKey.ButtonCloseConversation), $"acc:{c.Id}:{page}"));
+        else
+            bf.AddButtonRow(Ctx.T(LocKey.ButtonReopen), $"acx:{c.Id}:{page}");
+        var nav = view?.Nav(n => $"acd:{c.Id}:{page}:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), $"acv:{page}");
         return bf;
     }
 
-    private async Task<string> HistoryText(Conversation c, bool forUser = false)
+    /// <summary>One short page of the conversation (newest by default); fromEnd = pages back from the newest.</summary>
+    private async Task<PagedText> HistoryView(Conversation c, bool forUser, int fromEnd)
     {
         var name = await UserLabel(c.UserId);
         var status = Ctx.T(c.Status == ConversationStatus.Open ? LocKey.ConvOpen : LocKey.ConvClosed);
         var head = forUser ? Ctx.F(LocKey.SupportConvHeader, c.Id, status) : Ctx.F(LocKey.AdminConvHeader, c.Id, Text.H(name), c.UserId, status);
 
         var (messages, hasMore) = await Ctx.Support.RecentMessagesAsync(c.Id, HistoryTake);
-        var lines = new List<string>();
-        var used = 0;
-        for (var i = messages.Count - 1; i >= 0; i--) // newest first, until the message is full
+        if (hasMore) head += "\n" + Ctx.T(LocKey.ConvHistoryOmitted);
+
+        var blocks = new List<string>();
+        foreach (var msg in messages)
         {
-            var msg = messages[i];
             var when = msg.SentAt.ToString("MM-dd HH:mm");
             var who = msg.FromAdmin ? Ctx.F(LocKey.ConvMsgAdmin, when) : forUser ? Ctx.F(LocKey.ConvMsgYou, when) : Ctx.F(LocKey.ConvMsgUser, Text.H(name), when);
-            var line = $"{who}\n{Text.H(msg.Text)}";
-            if (used + line.Length > HistoryChars) { hasMore = true; break; }
-            used += line.Length;
-            lines.Insert(0, line);
+            var first = true;
+            foreach (var part in Pager.Chunk(msg.Text))
+            {
+                blocks.Add(first ? $"{who}\n{Text.H(part)}" : Text.H(part));
+                first = false;
+            }
         }
 
-        var body = string.Join("\n\n", lines);
-        return head + (hasMore ? "\n" + Ctx.T(LocKey.ConvHistoryOmitted) : "") + "\n\n" + body;
+        return Pager.Build(blocks, head, fromEnd);
     }
 
-    private async Task ShowHistory(MessageResult m, Conversation c, int page) =>
-        await Ctx.Ui.Show(m, await HistoryText(c), HistoryButtons(c, page));
+    private async Task ShowHistory(MessageResult m, Conversation c, int page, int fromEnd)
+    {
+        var view = await HistoryView(c, false, fromEnd);
+        await ShowFrom(m, view.Text, HistoryButtons(c, page, view));
+    }
 
     /// <summary>Answer mode: everything the admin sends goes to the user. conversationId 0 = starts with the first message.</summary>
     private async Task StartAnswer(MessageResult m, long userId, long conversationId)
@@ -491,7 +540,7 @@ public sealed class SupportScreen : Screen
         Ctx.Session.ConversationId = conversationId;
         Ctx.Session.ConversationUserId = userId;
         var (text, bf) = await AnswerPrompt();
-        await Ctx.Ui.Show(m, text, bf);
+        await ShowFrom(m, text, bf);
     }
 
     private async Task<(string Text, ButtonForm Buttons)> AnswerPrompt()
@@ -569,9 +618,8 @@ public sealed class SupportScreen : Screen
     private ButtonForm UserReplyButtons(string language, long conversationId)
     {
         var bf = new ButtonForm();
-        bf.AddButtonRow(new ButtonBase(Ctx.Localization.T(language, LocKey.ButtonReply), $"supr:{conversationId}"),
-            new ButtonBase(Ctx.Localization.T(language, LocKey.ButtonCloseConversation), $"supc:{conversationId}"));
-        bf.AddButtonRow(Ctx.Localization.T(language, LocKey.ButtonHistory), $"sud:{conversationId}:0");
+        bf.AddButtonRow(new ButtonBase(Ctx.Localization.T(language, LocKey.ButtonAnswer), $"supr:{conversationId}"),
+            new ButtonBase(Ctx.Localization.T(language, LocKey.ButtonHistory), $"sud:{conversationId}:0:0"));
         return bf;
     }
 
