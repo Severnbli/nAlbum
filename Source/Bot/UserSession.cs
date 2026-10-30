@@ -21,12 +21,18 @@ using Telegram.Bot.Types.Enums;
 
 namespace nAlbum.Bot;
 
-public enum Mode { Idle, NewTitle, Rename, Adding, Removing, RemovePrompt, GoToNumber, InviteForward, SongUpload, Broadcast }
+// Values are stored in saved sessions: never renumber, leave a gap when a mode is removed (6 was GoToNumber).
+public enum Mode
+{
+    Idle = 0, NewTitle = 1, Rename = 2, Adding = 3, Removing = 4, RemovePrompt = 5,
+    InviteForward = 7, SongUpload = 8, Broadcast = 9, InviteExpiry = 10, InviteUses = 11
+}
 
 public sealed class UserSession
 {
     public Mode Mode { get; set; } = Mode.Idle;
     public long AlbumId { get; set; }                 // was _albumId
+    public long InviteSeconds { get; set; }           // lifetime picked for the invite link being created, 0 = no limit
     public int MenuMessageId { get; set; }            // the single message with menu buttons (card, list, prompt)
     public int BroadcastMessageId { get; set; }       // admin's message waiting for broadcast confirmation
     public BroadcastDraft Broadcast { get; set; }     // its content, sent to everyone on confirmation
@@ -192,8 +198,6 @@ public sealed class ViewState
     public long DeleteSeed;                  // was _removeSeed   (0 = ordered view)
     public int DeleteOffset;                 // was _removeOffset
     public int DeleteFlags = 3;              // view flags to keep while refreshing in delete mode
-    public int GoToOffset;                   // page to return to when "Go to number" is cancelled
-    public int GoToFlags;                    // numbers flags to keep after jumping
 }
 
 public sealed class RemovalState

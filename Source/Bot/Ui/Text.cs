@@ -23,10 +23,19 @@ public static class Text
 {
     public static string H(string s) => WebUtility.HtmlEncode(s ?? "");
 
+    /// <summary>
+    /// Invisible filler line (Braille blanks). Telegram shrinks inline buttons to the width of a short message,
+    /// so view messages carry it to keep the buttons wide enough to tap.
+    /// </summary>
+    public static readonly string MinWidth = "\n" + new string('\u2800', 30);
+
     public static string Truncate(string s, int max) => s.Length <= max ? s : s[..max];
 
+    /// <summary>Drops control characters (NUL, escapes, ...) from text that is stored or shown.</summary>
+    public static string StripControl(string s) => new(s.Where(c => !char.IsControl(c) || c is '\n' or '\t').ToArray());
+
     public static string CleanTitle(string s) =>
-        Truncate(string.Join(' ', s.Split((char[])null, StringSplitOptions.RemoveEmptyEntries)), 100);
+        Truncate(string.Join(' ', StripControl(s).Split((char[])null, StringSplitOptions.RemoveEmptyEntries)), 100);
 
     public static int Int(string[] p, int i) => p.Length > i && int.TryParse(p[i], out var v) ? v : 0;
 
@@ -38,7 +47,7 @@ public static class Text
     public static string UserName(Telegram.Bot.Types.User user)
     {
         if (user == null) return null;
-        var name = string.Join(' ', new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        var name = StripControl(string.Join(' ', new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)))).Trim();
         return name.Length == 0 ? null : Truncate(name, 64);
     }
 }

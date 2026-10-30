@@ -29,6 +29,7 @@ public sealed class SessionSnapshot
 
     public Mode Mode { get; set; }
     public long AlbumId { get; set; }
+    public long InviteSeconds { get; set; }
     public int MenuMessageId { get; set; }
     public int BroadcastMessageId { get; set; }
     public BroadcastDraft Broadcast { get; set; }
@@ -56,8 +57,6 @@ public sealed class SessionSnapshot
     public long ViewDeleteSeed { get; set; }
     public int ViewDeleteOffset { get; set; }
     public int ViewDeleteFlags { get; set; } = 3;
-    public int ViewGoToOffset { get; set; }
-    public int ViewGoToFlags { get; set; }
 
     // removal preview
     public List<MediaItem> RemovalPending { get; set; } = new();
@@ -70,6 +69,7 @@ public sealed class SessionSnapshot
     {
         Mode = s.Mode,
         AlbumId = s.AlbumId,
+        InviteSeconds = s.InviteSeconds,
         MenuMessageId = s.MenuMessageId,
         BroadcastMessageId = s.BroadcastMessageId,
         Broadcast = s.Broadcast,
@@ -95,8 +95,6 @@ public sealed class SessionSnapshot
         ViewDeleteSeed = s.View.DeleteSeed,
         ViewDeleteOffset = s.View.DeleteOffset,
         ViewDeleteFlags = s.View.DeleteFlags,
-        ViewGoToOffset = s.View.GoToOffset,
-        ViewGoToFlags = s.View.GoToFlags,
 
         RemovalPending = s.Removal.Pending.Select(x => x.Item).ToList(),
         RemovalKept = s.Removal.Kept.ToList(),
@@ -109,6 +107,7 @@ public sealed class SessionSnapshot
     {
         s.Mode = Enum.IsDefined(Mode) ? Mode : Mode.Idle;
         s.AlbumId = AlbumId;
+        s.InviteSeconds = InviteSeconds;
         s.MenuMessageId = MenuMessageId;
         s.BroadcastMessageId = BroadcastMessageId;
         s.Broadcast = Broadcast;
@@ -136,8 +135,6 @@ public sealed class SessionSnapshot
         s.View.DeleteSeed = ViewDeleteSeed;
         s.View.DeleteOffset = ViewDeleteOffset;
         s.View.DeleteFlags = ViewDeleteFlags;
-        s.View.GoToOffset = ViewGoToOffset;
-        s.View.GoToFlags = ViewGoToFlags;
 
         s.Removal.Clear();
         s.Removal.Pending.AddRange((RemovalPending ?? new()).Select(i => (i.Number, i)));

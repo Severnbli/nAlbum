@@ -58,6 +58,7 @@ var bot = BotBaseBuilder
         a.Add("new", "Create an album");
         a.Add("join", "Open an album by code");
         a.Add("albums", "Albums");
+        a.Add("numbers", "Show file numbers");
         a.Add("cancel", "Cancel the current action");
         a.Add("language", "Choose bot language");
         a.Add("help", "Help");

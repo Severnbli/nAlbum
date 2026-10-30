@@ -37,19 +37,21 @@ public sealed class MembersScreen : Screen
 {
     private const int ListPage = 8;
     private const int InvitePage = 5;
-    private static readonly int[] LifetimeHours = { 1, 24, 24 * 7, 24 * 30, 0 };   // 0 = no limit
-    private static readonly int[] UseLimits = { 1, 5, 10, 50, 0 };                 // 0 = no limit
+    private static readonly long[] Lifetimes = { 3600, 86400, 7 * 86400, 30 * 86400, 0 };   // seconds, 0 = no limit
+    private static readonly int[] UseLimits = { 1, 5, 10, 50, 0 };                          // 0 = no limit
 
     public MembersScreen(BotContext ctx) : base(ctx) { }
 
     public override IReadOnlyCollection<string> Callbacks => new[]
     {
         "mem", "mu", "mk", "mkok", "mpr", "mde", "mxf", "mto", "mtook",
-        "inv", "invn", "inve", "invc", "invd", "invf"
+        "inv", "invn", "invxy", "inve", "invc", "invuy", "invd", "invf"
     };
+    public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.InviteExpiry, Mode.InviteUses };
     public override async Task OnCallback(MessageResult m, string[] p)
     {
-        if (p[0] != "invf" && Ctx.Session.Mode == Mode.InviteForward) Ctx.Session.Mode = Mode.Idle;
+        if (p[0] != "invf" && Ctx.Session.Mode is Mode.InviteForward or Mode.InviteExpiry or Mode.InviteUses)
+            Ctx.Session.Mode = Mode.Idle;
         var album = p[0] is "mxf" or "mto" or "mtook" ? await Ctx.Ui.OwnedAlbum(m, p) : await Ctx.Ui.ManagedAlbum(m, p);
         if (album == null) return;
         var role = album.OwnerId == Ctx.UserId ? AlbumRole.Owner : AlbumRole.Manager;
@@ -82,40 +84,35 @@ public sealed class MembersScreen : Screen
                 break;
 
             case "invn":
-            {
                 await m.ConfirmAction();
-                var bf = new ButtonForm();
-                bf.AddButtonRow(LifetimeHours.Select(h => new ButtonBase(LifetimeLabel(h), $"inve:{album.Id}:{h}")).ToArray());
-                bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), $"inv:{album.Id}:0");
-                await Ctx.Ui.Show(m, Ctx.T(LocKey.InviteChooseExpiry), bf);
+                await AskExpiry(m, album);
                 break;
-            }
 
+            case "invxy": // the typed lifetime was confirmed
             case "inve":
             {
                 await m.ConfirmAction();
-                var hours = Math.Max(Text.Int(p, 2), 0);
-                var bf = new ButtonForm();
-                bf.AddButtonRow(UseLimits.Select(u => new ButtonBase(u == 0 ? Ctx.T(LocKey.InviteNoLimit) : u.ToString(),
-                    $"invc:{album.Id}:{hours}:{u}")).ToArray());
-                bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), $"inv:{album.Id}:0");
-                await Ctx.Ui.Show(m, Ctx.T(LocKey.InviteChooseUses), bf);
+                var seconds = Text.Long(p, 2);
+                if (seconds is < 0 or > InviteInput.MaxSeconds) return;
+                await AskUses(m, album, seconds);
                 break;
             }
 
+            case "invuy": // the typed use limit was confirmed
             case "invc":
             {
-                var hours = Text.Int(p, 2);
+                var seconds = Text.Long(p, 2);
                 var uses = Text.Int(p, 3);
-                if (!LifetimeHours.Contains(hours) || !UseLimits.Contains(uses))
+                if (seconds is < 0 or > InviteInput.MaxSeconds || uses is < 0 or > InviteInput.MaxUses)
                 {
                     await m.ConfirmAction();
                     return;
                 }
 
                 await m.ConfirmAction();
+                Ctx.Session.Mode = Mode.Idle;
                 var link = await Ctx.Albums.CreateInvite(album.Id, Ctx.UserId,
-                    hours == 0 ? null : TimeSpan.FromHours(hours), uses == 0 ? null : uses);
+                    seconds == 0 ? null : TimeSpan.FromSeconds(seconds), uses == 0 ? null : uses);
                 await Ctx.Stats.IncrementAsync(StatKeys.InvitesCreated);
                 var bf = new ButtonForm();
                 bf.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonInviteLinks), $"inv:{album.Id}:0"), new ButtonBase(Ctx.T(LocKey.ButtonBack), $"mg:{album.Id}"));
@@ -322,12 +319,95 @@ public sealed class MembersScreen : Screen
 
     private static string InviteUrl(InviteLink link) => $"https://t.me/{BotInfo.Username}?start={link.Code}";
 
-    private string LifetimeLabel(int hours) => hours switch
+    /// <summary>"1 d 10 h 30 min 17 s"; the unit texts come from the locale.</summary>
+    private string DurationText(long seconds)
     {
-        0 => Ctx.T(LocKey.InviteNoLimit),
-        < 24 => Ctx.F(LocKey.InviteHours, hours),
-        _ => Ctx.F(LocKey.InviteDays, hours / 24)
-    };
+        if (seconds <= 0) return Ctx.T(LocKey.InviteNoLimit);
+        var parts = new List<string>();
+        if (seconds >= 86400) parts.Add(Ctx.F(LocKey.InviteDays, seconds / 86400));
+        if (seconds % 86400 >= 3600) parts.Add(Ctx.F(LocKey.InviteHours, seconds % 86400 / 3600));
+        if (seconds % 3600 >= 60) parts.Add(Ctx.F(LocKey.InviteMinutes, seconds % 3600 / 60));
+        if (seconds % 60 > 0) parts.Add(Ctx.F(LocKey.InviteSeconds, seconds % 60));
+        return string.Join(' ', parts);
+    }
+
+    // ------------------------------------------- new link: lifetime and uses
+    private async Task AskExpiry(MessageResult m, Album album)
+    {
+        Ctx.Session.Mode = Mode.InviteExpiry;
+        Ctx.Session.AlbumId = album.Id;
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.InviteChooseExpiry), ExpiryButtons(album));
+    }
+
+    private ButtonForm ExpiryButtons(Album album)
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Lifetimes.Select(x => new ButtonBase(DurationText(x), $"inve:{album.Id}:{x}")).ToArray());
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), $"inv:{album.Id}:0");
+        return bf;
+    }
+
+    private async Task AskUses(MessageResult m, Album album, long seconds)
+    {
+        Ctx.Session.Mode = Mode.InviteUses;
+        Ctx.Session.AlbumId = album.Id;
+        Ctx.Session.InviteSeconds = seconds;
+        await Ctx.Ui.Show(m, Ctx.T(LocKey.InviteChooseUses), UsesButtons(album, seconds));
+    }
+
+    private ButtonForm UsesButtons(Album album, long seconds)
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(UseLimits.Select(u => new ButtonBase(u == 0 ? Ctx.T(LocKey.InviteNoLimit) : u.ToString(),
+            $"invc:{album.Id}:{seconds}:{u}")).ToArray());
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), $"inv:{album.Id}:0");
+        return bf;
+    }
+
+    /// <summary>A typed lifetime or use limit: the bot repeats what it understood and waits for a yes.</summary>
+    public override async Task OnText(MessageResult m, string text)
+    {
+        await Ctx.Ui.TryDelete(m.MessageId); // keep the chat tidy
+
+        var s = Ctx.Session;
+        var album = await Ctx.Albums.GetAlbum(s.AlbumId);
+        if (album == null || !await Ctx.Albums.CanManage(album, Ctx.UserId))
+        {
+            s.Mode = Mode.Idle;
+            return;
+        }
+
+        var confirm = new ButtonForm();
+        if (s.Mode == Mode.InviteExpiry)
+        {
+            if (InviteInput.ParseDuration(text) is not { } seconds)
+            {
+                await Ctx.Ui.ShowMenu(Ctx.T(LocKey.InviteExpiryInvalid) + "\n\n" + Ctx.T(LocKey.InviteChooseExpiry),
+                    ExpiryButtons(album));
+                return;
+            }
+
+            confirm.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonYes), $"invxy:{album.Id}:{seconds}"),
+                new ButtonBase(Ctx.T(LocKey.ButtonNo), $"invn:{album.Id}"));
+            confirm.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), $"inv:{album.Id}:0");
+            s.Mode = Mode.Idle;
+            await Ctx.Ui.ShowMenu(Ctx.F(LocKey.InviteConfirmExpiry, DurationText(seconds)), confirm);
+            return;
+        }
+
+        if (InviteInput.ParseUses(text) is not { } uses)
+        {
+            await Ctx.Ui.ShowMenu(Ctx.T(LocKey.InviteUsesInvalid) + "\n\n" + Ctx.T(LocKey.InviteChooseUses),
+                UsesButtons(album, s.InviteSeconds));
+            return;
+        }
+
+        confirm.AddButtonRow(new ButtonBase(Ctx.T(LocKey.ButtonYes), $"invuy:{album.Id}:{s.InviteSeconds}:{uses}"),
+            new ButtonBase(Ctx.T(LocKey.ButtonNo), $"inve:{album.Id}:{s.InviteSeconds}"));
+        confirm.AddButtonRow(Ctx.T(LocKey.ButtonCancelAction), $"inv:{album.Id}:0");
+        s.Mode = Mode.Idle;
+        await Ctx.Ui.ShowMenu(Ctx.F(LocKey.InviteConfirmUses, uses), confirm);
+    }
 
     private string ExpiryText(InviteLink link)
     {
