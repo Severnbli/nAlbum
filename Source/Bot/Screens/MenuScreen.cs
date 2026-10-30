@@ -54,7 +54,7 @@ public sealed class MenuScreen : Screen
 
         if (command == "/privacy")
         {
-            await ShowPrivacy(m);
+            await ShowPrivacy(m, int.MaxValue);
             return;
         }
 
@@ -94,7 +94,7 @@ public sealed class MenuScreen : Screen
 
             case "privacy":
                 await m.ConfirmAction();
-                await ShowPrivacy(m);
+                await ShowPrivacy(m, p.Length > 1 ? Text.Int(p, 1) : int.MaxValue);
                 break;
 
             case "language":
@@ -117,11 +117,16 @@ public sealed class MenuScreen : Screen
         await Ctx.Ui.Show(m, Ctx.T(LocKey.HelpText), bf);
     }
 
-    private async Task ShowPrivacy(MessageResult m)
+    /// <summary>The policy is cut into pages at paragraph breaks; the title repeats on every page. fromEnd = pages back from the last one.</summary>
+    private async Task ShowPrivacy(MessageResult m, int fromEnd)
     {
+        var parts = Ctx.T(LocKey.PrivacyPolicy).Split("\n\n");
+        var page = Pager.Build(parts[1..], parts[0], fromEnd);
         var bf = new ButtonForm();
+        var nav = page.Nav(n => $"privacy:{n}");
+        if (nav != null) bf.AddButtonRow(nav);
         bf.AddButtonRow(Ctx.T(LocKey.ButtonMenu), "menu");
-        await Ctx.Ui.Show(m, Ctx.T(LocKey.PrivacyPolicy), bf);
+        await Ctx.Ui.Show(m, page.Text, bf);
     }
 
     private async Task ShowLanguage(MessageResult m)

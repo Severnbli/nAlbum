@@ -446,10 +446,17 @@ public sealed class SupportScreen : Screen
         return bf;
     }
 
+    /// <summary>Raw (not escaped) name with the @username after it when the user has one.</summary>
+    private string WithUsername(string name, string username, long userId)
+    {
+        var label = string.IsNullOrWhiteSpace(name) ? Ctx.F(LocKey.MemberUnknown, userId) : name;
+        return string.IsNullOrEmpty(username) ? label : $"{label} @{username}";
+    }
+
     private async Task<string> UserLabel(long userId)
     {
-        var name = (await Ctx.Users.GetOverviewAsync(userId))?.User.Name;
-        return string.IsNullOrWhiteSpace(name) ? Ctx.F(LocKey.MemberUnknown, userId) : name;
+        var user = (await Ctx.Users.GetOverviewAsync(userId))?.User;
+        return WithUsername(user?.Name, user?.Username, userId);
     }
 
     private static string Icon(Conversation c) =>
@@ -469,7 +476,7 @@ public sealed class SupportScreen : Screen
         var bf = new ButtonForm();
         foreach (var it in items)
         {
-            var name = string.IsNullOrWhiteSpace(it.UserName) ? Ctx.F(LocKey.MemberUnknown, it.Conversation.UserId) : it.UserName;
+            var name = WithUsername(it.UserName, it.Username, it.Conversation.UserId);
             bf.AddButtonRow($"{Icon(it.Conversation)} #{it.Conversation.Id} {Text.Truncate(name, 28)} · {it.Messages}",
                 $"acd:{it.Conversation.Id}:{page}");
         }

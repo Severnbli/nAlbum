@@ -114,6 +114,7 @@ public sealed class SupportService
                            {
                                Conversation = c,
                                UserName = u.Name,
+                               Username = u.Username,
                                Messages = db.ConversationMessages.Count(m => m.ConversationId == c.Id)
                            })
             .Skip(skip).Take(take).ToListAsync();
