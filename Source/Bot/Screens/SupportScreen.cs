@@ -136,8 +136,12 @@ public sealed class SupportScreen : Screen
                 await m.ConfirmAction(Ctx.T(LocKey.AdminConvClosedDone));
                 Ctx.Session.Mode = Mode.Idle;
                 if (await Ctx.Support.CloseAsync(conversation.Id))
+                {
+                    await DeleteOldNotices(conversation.UserId, conversation.Id);   // their Reply / Close buttons are void now
                     await Push(conversation.UserId, 0, l => Ctx.Localization.T(l, LocKey.SupportClosedByAdmin),
                         l => HelpButtons(l));
+                }
+
                 await ShowList(m, Text.Int(p, 2));
                 break;
             }
@@ -189,7 +193,7 @@ public sealed class SupportScreen : Screen
         var conversation = await Ctx.Support.GetAsync(conversationId);
         if (msg.Text == null)
         {
-            await Ctx.Ui.Say(Ctx.T(LocKey.SupportOnlyText));
+            await Ctx.Ui.ShowMenu(Ctx.T(LocKey.SupportOnlyText), IsAdmin ? ListBackButtons() : HelpButtons());   // edits the menu, no extra message
             return true;
         }
 
@@ -350,6 +354,13 @@ public sealed class SupportScreen : Screen
         await Ctx.Ui.Show(m, text, bf);
     }
 
+    private ButtonForm ListBackButtons()
+    {
+        var bf = new ButtonForm();
+        bf.AddButtonRow(Ctx.T(LocKey.ButtonBack), "acv:0");
+        return bf;
+    }
+
     private ButtonForm HistoryButtons(Conversation c, int page)
     {
         var bf = new ButtonForm();
@@ -431,7 +442,7 @@ public sealed class SupportScreen : Screen
         if (userId == 0 || id != 0 && conversation == null)
         {
             s.Mode = Mode.Idle;
-            await Ctx.Ui.Say(Ctx.T(LocKey.AdminConvGone));
+            await Ctx.Ui.ShowMenu(Ctx.T(LocKey.AdminConvGone), ListBackButtons());
             return;
         }
 
@@ -478,6 +489,21 @@ public sealed class SupportScreen : Screen
     }
 
     // ----------------------------------------------------------- delivery
+    /// <summary>Deletes the earlier notices of a conversation in another chat: their buttons are stale once a newer one arrives.</summary>
+    private async Task DeleteOldNotices(long chatId, long conversationId)
+    {
+        var ids = await Ctx.Support.TakeNoticesAsync(chatId, conversationId);
+        if (ids.Count == 0) return;
+        try
+        {
+            await Ctx.Device.Dispatch(a => a.DeleteMessages(chatId, ids));
+        }
+        catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
+        {
+            await Console.Error.WriteLineAsync($"Old support notices in {chatId} not deleted: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Sends a message to another chat in that user's language and remembers it as part of the conversation,
     /// so a Telegram reply to it continues the conversation. False when the user can't be reached.
@@ -488,6 +514,7 @@ public sealed class SupportScreen : Screen
         var bf = buttons?.Invoke(language);
         try
         {
+            if (conversationId != 0) await DeleteOldNotices(chatId, conversationId);   // one live notice per conversation
             var msg = await Ctx.Device.Dispatch(a => a.SendMessage(chatId, Text.WithMinWidth(text(language), bf),
                 parseMode: ParseMode.Html,
                 replyMarkup: bf == null ? null : new InlineKeyboardMarkup(bf.ToInlineButtonArray())));

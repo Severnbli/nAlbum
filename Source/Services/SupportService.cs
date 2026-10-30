@@ -129,6 +129,18 @@ public sealed class SupportService
             $"INSERT OR REPLACE INTO ConversationNotices (ChatId, MessageId, ConversationId) VALUES ({chatId}, {messageId}, {conversationId})");
     }
 
+    /// <summary>Forgets the bot messages of this chat about the conversation and returns their ids, so the caller can delete them.</summary>
+    public async Task<List<int>> TakeNoticesAsync(long chatId, long conversationId)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var ids = await db.ConversationNotices.AsNoTracking()
+            .Where(n => n.ChatId == chatId && n.ConversationId == conversationId)
+            .Select(n => n.MessageId).ToListAsync();
+        if (ids.Count > 0)
+            await db.ConversationNotices.Where(n => n.ChatId == chatId && n.ConversationId == conversationId).ExecuteDeleteAsync();
+        return ids;
+    }
+
     /// <summary>The conversation a bot message of this chat belongs to, or 0.</summary>
     public async Task<long> FindNoticeAsync(long chatId, int messageId)
     {
