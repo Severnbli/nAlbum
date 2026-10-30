@@ -34,7 +34,7 @@ public static class SchemaUpgrader
         {
             // Brand-new database: EF creates the full current model.
             await db.Database.EnsureCreatedAsync();
-            await db.Database.ExecuteSqlRawAsync($"PRAGMA user_version = {LatestVersion}");
+            await SetVersion(db, LatestVersion);
             await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
             return;
         }
@@ -56,6 +56,18 @@ public static class SchemaUpgrader
         await db.Database
             .SqlQuery<int>($"SELECT COUNT(*) AS Value FROM sqlite_master WHERE type = 'table' AND name = {name}")
             .SingleAsync() > 0;
+
+    /// <summary>
+    /// PRAGMA statements cannot take parameters, so the value is an int (never text) and range-checked.
+    /// Every other statement in the bot is parameterized; values are never concatenated into SQL.
+    /// </summary>
+    private static async Task SetVersion(AlbumDb db, int version)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(version);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(version, LatestVersion);
+        await db.Database.ExecuteSqlRawAsync(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"PRAGMA user_version = {version}"));
+    }
 
     private static async Task<int> GetVersion(AlbumDb db) =>
         await db.Database.SqlQuery<int>($"SELECT user_version AS Value FROM pragma_user_version").SingleAsync();
@@ -112,7 +124,7 @@ public static class SchemaUpgrader
 
         await using var tx = await db.Database.BeginTransactionAsync();
         foreach (var sql in steps) await db.Database.ExecuteSqlRawAsync(sql);
-        await db.Database.ExecuteSqlRawAsync("PRAGMA user_version = 2");
+        await SetVersion(db, 2);
         await tx.CommitAsync();
     }
 
@@ -120,7 +132,7 @@ public static class SchemaUpgrader
     {
         await db.Database.ExecuteSqlRawAsync(
             "CREATE TABLE IF NOT EXISTS \"UserPreferences\" (\"UserId\" INTEGER NOT NULL CONSTRAINT \"PK_UserPreferences\" PRIMARY KEY, \"LanguageCode\" TEXT NULL)");
-        await db.Database.ExecuteSqlRawAsync("PRAGMA user_version = 3");
+        await SetVersion(db, 3);
     }
 
     /// <summary>Roles and invite links replace open/closed albums. Codes of open albums become unlimited invite links.</summary>
@@ -157,7 +169,7 @@ public static class SchemaUpgrader
 
         await using var tx = await db.Database.BeginTransactionAsync();
         foreach (var sql in steps) await db.Database.ExecuteSqlRawAsync(sql);
-        await db.Database.ExecuteSqlRawAsync("PRAGMA user_version = 4");
+        await SetVersion(db, 4);
         await tx.CommitAsync();
     }
 
@@ -165,7 +177,7 @@ public static class SchemaUpgrader
     {
         await using var tx = await db.Database.BeginTransactionAsync();
         await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Albums\" ADD COLUMN \"SongFileId\" TEXT NULL");
-        await db.Database.ExecuteSqlRawAsync("PRAGMA user_version = 5");
+        await SetVersion(db, 5);
         await tx.CommitAsync();
     }
 }
