@@ -119,7 +119,10 @@ public sealed class AdminUsersScreen : Screen
         var text = Ctx.F(LocKey.AdminUsersTitle, Text.N(total)) + (total == 0 ? Ctx.T(LocKey.ListEmpty) : "");
         var bf = new ButtonForm();
         foreach (var u in items)
-            bf.AddButtonRow($"{(u.IsBanned ? "🚫" : "👤")} {Text.Truncate(Name(u.Name, u.UserId), 30)} · {u.UserId}", $"auu:{u.UserId}:{page}");
+        {
+            var tag = string.IsNullOrEmpty(u.Username) ? u.UserId.ToString() : "@" + u.Username;
+            bf.AddButtonRow($"{(u.IsBanned ? "🚫" : "👤")} {Text.Truncate(Name(u.Name, u.UserId), 30)} · {tag}", $"auu:{u.UserId}:{page}");
+        }
 
         var nav = BotUi.PageRow(page, total, ListPage, n => $"aus:{n}");
         if (nav != null) bf.AddButtonRow(nav);
@@ -132,7 +135,8 @@ public sealed class AdminUsersScreen : Screen
         var u = o.User;
         var status = Ctx.T(u.IsBanned ? LocKey.AdminStatusBanned : LocKey.AdminStatusActive);
         var text = Ctx.F(LocKey.AdminUserDetails, u.UserId, Text.H(Name(u.Name, u.UserId)),
-            u.FirstSeenAt.ToString("yyyy-MM-dd"), u.LastSeenAt.ToString("yyyy-MM-dd HH:mm"), o.AlbumsOwned, o.AlbumsJoined, status);
+            u.FirstSeenAt.ToString("yyyy-MM-dd"), u.LastSeenAt.ToString("yyyy-MM-dd HH:mm"), o.AlbumsOwned, o.AlbumsJoined, status,
+            string.IsNullOrEmpty(u.Username) ? "" : "\n@" + Text.H(u.Username));
 
         var bf = new ButtonForm();
         if (!Ctx.Config.IsAdmin(u.UserId))

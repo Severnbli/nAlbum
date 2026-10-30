@@ -139,6 +139,7 @@ public class ConversationListItem
 {
     public Conversation Conversation { get; set; }
     public string UserName { get; set; }
+    public string Username { get; set; }   // Telegram @username without the @, null when the user has none
     public int Messages { get; set; }
 }
 
