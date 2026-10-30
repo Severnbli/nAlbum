@@ -68,7 +68,6 @@ public static class LocKey
     public const string ButtonBack = nameof(ButtonBack);
     public const string CardViewStats = nameof(CardViewStats);
     public const string CardMedia = nameof(CardMedia);
-    public const string CardLastNumber = nameof(CardLastNumber);
     public const string ButtonAddMedia = nameof(ButtonAddMedia);
     public const string ButtonRemoveMedia = nameof(ButtonRemoveMedia);
     public const string ButtonRename = nameof(ButtonRename);

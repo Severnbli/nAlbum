@@ -36,10 +36,7 @@ public sealed class AlbumCard
         // title, then one line per fact, the role last
         var sb = new StringBuilder();
         sb.Append($"📁 <b>{Text.H(album.Title)}</b>\n\n");
-        var media = Ctx.F(LocKey.CardMedia, Text.N(count));
-        if (manager && album.NextNumber > 1)
-            media += Ctx.F(LocKey.CardLastNumber, album.NextNumber - 1);
-        sb.Append(media);
+        sb.Append(Ctx.F(LocKey.CardMedia, Text.N(count)));
         if (watch != null) sb.Append('\n').Append(Ctx.F(LocKey.CardViewStats, Text.N(watch.Views), Text.N(watch.Pages)));
         if (manager) sb.Append('\n').Append(Ctx.F(LocKey.CardMembers, Text.N(await Ctx.Albums.MemberCount(album.Id) + 1)));
         sb.Append('\n').Append(Ctx.F(LocKey.CardRole, Ctx.Ui.RoleName(role)));
