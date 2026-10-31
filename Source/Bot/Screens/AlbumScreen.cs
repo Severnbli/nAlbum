@@ -26,7 +26,7 @@ public sealed class AlbumScreen : Screen
 {
     public AlbumScreen(BotContext ctx) : base(ctx) { }
 
-    public override IReadOnlyCollection<string> Callbacks => new[] { "al", "mg", "new", "ren", "del", "delok" };
+    public override IReadOnlyCollection<string> Callbacks => new[] { "al", "aln", "mg", "new", "ren", "del", "delok" };
     public override IReadOnlyCollection<Mode> TextModes => new[] { Mode.NewTitle, Mode.Rename };
     public override IReadOnlyCollection<string> Commands => new[] { "/new" };
 
@@ -93,6 +93,18 @@ public sealed class AlbumScreen : Screen
                 await Ctx.View.ClearView(m.MessageId);
                 var (card, bf) = await Ctx.Cards.Build(album);
                 await Ctx.Ui.Show(m, card, bf);
+                break;
+            }
+
+            case "aln": // Open on a durable notice (added, promoted, demoted, made owner): keep the notice, open a new menu
+            {
+                Ctx.Session.Mode = Mode.Idle;
+                var album = await Ctx.Ui.ViewableAlbum(m, p);
+                if (album == null) return;
+                await m.ConfirmAction();
+                await Ctx.View.ClearView();
+                var (card, bf) = await Ctx.Cards.Build(album);
+                await Ctx.Ui.Say(card, bf);
                 break;
             }
 
