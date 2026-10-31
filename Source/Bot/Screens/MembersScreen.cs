@@ -223,9 +223,13 @@ public sealed class MembersScreen : Screen
                 }
 
                 var promote = p[0] == "mpr";
-                await Ctx.Albums.SetRole(album.Id, userId, promote ? AlbumRole.Manager : AlbumRole.Member);
+                var role = promote ? AlbumRole.Manager : AlbumRole.Member;
+                var changed = target.Role != role; // a stale button may repeat the current role
+                await Ctx.Albums.SetRole(album.Id, userId, role);
                 await m.ConfirmAction(Ctx.T(promote ? LocKey.MemberPromoted : LocKey.MemberDemoted));
-                target.Role = promote ? AlbumRole.Manager : AlbumRole.Member;
+                target.Role = role;
+                if (changed)
+                    await NotifyMember(album, userId, promote ? LocKey.PromotedNotice : LocKey.DemotedNotice);
                 break;
 
             case "mto":
@@ -253,6 +257,7 @@ public sealed class MembersScreen : Screen
                 }
 
                 await m.ConfirmAction(Ctx.T(LocKey.TransferDone));
+                await NotifyMember(album, userId, LocKey.OwnerNotice); // the previous owner is the actor, no notice
                 album = await Ctx.Albums.GetAlbum(album.Id);
                 var (card, cardButtons) = await Ctx.Cards.Build(album);
                 await Ctx.Ui.Show(m, card, cardButtons);
@@ -466,7 +471,7 @@ public sealed class MembersScreen : Screen
 
                 Ctx.Session.Mode = Mode.Idle;
                 await Ctx.Stats.IncrementAsync(StatKeys.ForwardInvites);
-                var notified = await NotifyAdded(album, user.Id);
+                var notified = await NotifyMember(album, user.Id, LocKey.AddedToAlbumNotice);
                 var text = Ctx.F(LocKey.InviteForwardAdded, Text.H(name), Text.H(album.Title))
                            + Ctx.T(notified ? LocKey.InviteForwardNotified : LocKey.InviteForwardNotNotified);
                 await Ctx.Ui.ShowMenu(text, ForwardButtons(album, true));
@@ -479,22 +484,25 @@ public sealed class MembersScreen : Screen
         }
     }
 
-    /// <summary>Tells the invited user, in their own language. Fails when they have never started the bot.</summary>
-    private async Task<bool> NotifyAdded(Album album, long userId)
+    /// <summary>
+    /// Sends a durable notice about the album (added, promoted, demoted, made owner) with an Open button, in the user's own
+    /// language. Fails when they have never started the bot.
+    /// </summary>
+    private async Task<bool> NotifyMember(Album album, long userId, string key)
     {
         var language = Ctx.Localization.Resolve(await Ctx.Preferences.GetLanguageAsync(userId), null);
         var bf = new ButtonForm();
-        bf.AddButtonRow(Ctx.Localization.T(language, LocKey.ButtonOpen), $"al:{album.Id}");
+        bf.AddButtonRow(Ctx.Localization.T(language, LocKey.ButtonOpen), $"aln:{album.Id}");
         try
         {
             await Ctx.Device.Dispatch(a => a.SendMessage(userId,
-                Text.WithMinWidth(Ctx.Localization.F(language, LocKey.AddedToAlbumNotice, Text.H(album.Title)), bf),
+                Text.WithMinWidth(Ctx.Localization.F(language, key, Text.H(album.Title)), bf),
                 parseMode: ParseMode.Html, replyMarkup: new InlineKeyboardMarkup(bf.ToInlineButtonArray())));
             return true;
         }
         catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
         {
-            await Console.Error.WriteLineAsync($"Could not notify invited user: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Could not notify album member {userId}: {ex.Message}");
             return false;
         }
     }

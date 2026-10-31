@@ -178,6 +178,9 @@ public static class LocKey
     public const string ButtonInviteAnother = nameof(ButtonInviteAnother);
     public const string ButtonOpen = nameof(ButtonOpen);
     public const string AddedToAlbumNotice = nameof(AddedToAlbumNotice);
+    public const string PromotedNotice = nameof(PromotedNotice);
+    public const string DemotedNotice = nameof(DemotedNotice);
+    public const string OwnerNotice = nameof(OwnerNotice);
     public const string JoinAlready = nameof(JoinAlready);
     public const string ButtonSong = nameof(ButtonSong);
     public const string ButtonSetSong = nameof(ButtonSetSong);
