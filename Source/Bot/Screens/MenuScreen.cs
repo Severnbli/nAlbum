@@ -15,6 +15,7 @@
 */
 
 using nAlbum.Bot.Ui;
+using Telegram.Bot.Exceptions;
 using TelegramBotBase.Base;
 using TelegramBotBase.Form;
 using nAlbum.Localization;
@@ -79,7 +80,14 @@ public sealed class MenuScreen : Screen
 
             case "albums":
                 Ctx.Session.Mode = Mode.Idle;
-                await m.ConfirmAction();
+                try
+                {
+                    await m.ConfirmAction();
+                }
+                catch (RequestException ex) when (ex.InnerException is HttpRequestException or TaskCanceledException)
+                {
+                    await Console.Error.WriteLineAsync($"Could not acknowledge the album list callback: {ex.Message}");
+                }
                 await Ctx.Ui.ShowList(m, Text.Int(p, 1));
                 break;
 
