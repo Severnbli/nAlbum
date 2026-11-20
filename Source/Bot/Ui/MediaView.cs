@@ -14,7 +14,6 @@
     along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-using System.Net;
 using nAlbum.Data;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -214,20 +213,13 @@ public sealed class MediaView
     public async Task<bool> ClearView(int keepMessageId = 0)
     {
         var v = Ctx.Session.View;
-        var all = new List<int>(v.Ids);
-        if (v.NavId != 0 && v.NavId != keepMessageId) all.Add(v.NavId);
-        if (all.Count == 0)
-        {
-            v.Ids.Clear();
-            v.NavId = 0;
-            v.Editable = false;
-            v.LastPageKey = null;
-            return true;
-        }
+        var navId = v.NavId == keepMessageId ? 0 : v.NavId;
+        var ids = new List<int>(v.Ids);
+        if (navId != 0) ids.Add(navId);
 
         try
         {
-            await Ctx.Device.Dispatch(a => a.DeleteMessages(Ctx.Device.DeviceId, all));
+            if (ids.Count > 0) await DeleteViewMessages(ids, navId);
         }
         catch (Exception ex) when (ex is RequestException or HttpRequestException or TaskCanceledException)
         {
@@ -241,4 +233,45 @@ public sealed class MediaView
         v.LastPageKey = null;
         return true;
     }
+
+    private async Task DeleteViewMessages(List<int> ids, int navId)
+    {
+        try
+        {
+            await Ctx.Device.Dispatch(a => a.DeleteMessages(Ctx.Device.DeviceId, ids));
+            return;
+        }
+        catch (ApiRequestException ex) when (CannotDelete(ex))
+        {
+            // Telegram can reject the entire batch if one message is past its deletion window.
+        }
+
+        foreach (var id in ids)
+        {
+            try
+            {
+                await Ctx.Device.DeleteMessage(id);
+            }
+            catch (ApiRequestException ex) when (ex.ErrorCode == 400 && ex.Message.Contains("message to delete not found"))
+            {
+                // Already gone, including messages removed by a previous cleanup attempt.
+            }
+            catch (ApiRequestException ex) when (CannotDelete(ex))
+            {
+                if (id != navId) continue;
+
+                try
+                {
+                    await Ctx.Device.Dispatch(a => a.EditMessageReplyMarkup(Ctx.Device.DeviceId, id, null));
+                }
+                catch (ApiRequestException editError) when (editError.ErrorCode == 400)
+                {
+                    // The old navigation may also be missing, uneditable or already have no buttons.
+                }
+            }
+        }
+    }
+
+    private static bool CannotDelete(ApiRequestException ex) =>
+        ex.ErrorCode == 400 && ex.Message.Contains("message can't be deleted");
 }
