@@ -127,6 +127,8 @@ dotnet build
 
 There is currently no automated test project. The application targets .NET 10 and uses TelegramBotBase, EF Core, and SQLite.
 
+[AGENTS.md](AGENTS.md) is the shared entry point for coding agents. See the [development guide](docs/development.md) for implementation and review conventions.
+
 ## License
 
 This project is distributed under the [GNU AGPL v3.0 license](LICENSE).
